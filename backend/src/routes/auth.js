@@ -9,15 +9,16 @@ const router = express.Router()
 // POST /api/auth/login  (requiere X-Tenant header)
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body
-    if (!email || !password) {
-      return res.status(400).json({ success: false, error: { code: 'MISSING_FIELDS', message: 'Email y password requeridos' } })
+    const { email, username, password } = req.body
+    const login = username || email
+    if (!login || !password) {
+      return res.status(400).json({ success: false, error: { code: 'MISSING_FIELDS', message: 'Usuario y password requeridos' } })
     }
 
     const pool = req.tenantPool
     const [rows] = await pool.query(
-      'SELECT * FROM usuarios WHERE email = ? AND activo = 1 LIMIT 1',
-      [email]
+      'SELECT * FROM usuarios WHERE (username = ? OR email = ?) AND activo = 1 LIMIT 1',
+      [login, login]
     )
 
     if (!rows.length) {
