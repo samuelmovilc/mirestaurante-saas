@@ -62,14 +62,25 @@ export default function PedidosAdmin() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtroEstado, fFecha, fTipo, fOrden])
 
-  function verDetalle(ped) {
-    const items = typeof ped.items === 'string' ? JSON.parse(ped.items || '[]') : (ped.items || [])
+  async function verDetalle(ped) {
     setSelPedido(ped)
-    setItemsEdit(items.map(it => ({ ...it })))
+    setItemsEdit([])
     setObsEdit(ped.observaciones || '')
     setLiqCliente(ped.nombre_cliente || '')
     setLiqObs(ped.observaciones || '')
     setLiqMPs([{ mp: '', monto: '' }])
+    try {
+      const res = await api.getPedido(ped.id)
+      const detalle = res.data?.detalle || []
+      setItemsEdit(detalle.map(it => ({
+        producto_id:    it.producto_id,
+        nombre_producto: it.nombre_producto,
+        precio_unitario: it.precio_unitario,
+        precio_costo:    it.precio_costo,
+        cantidad:        it.cantidad,
+        nota:            it.nota || '',
+      })))
+    } catch (e) { toast('Error cargando detalle del pedido', 'error') }
   }
 
   function calcTotal() {
