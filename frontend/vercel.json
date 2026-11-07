@@ -1,6 +1,6 @@
 {
+  "cleanUrls": true,
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "http://89.117.56.39:3010/api/$1" },
-    { "source": "/(.*)",     "destination": "/" }
+    { "source": "/(.*)", "destination": "/saas-admin.html" }
   ]
 }
