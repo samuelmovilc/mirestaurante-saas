@@ -17,8 +17,8 @@ router.post('/login', async (req, res) => {
 
     const pool = req.tenantPool
     const [rows] = await pool.query(
-      'SELECT * FROM usuarios WHERE (username = ? OR email = ?) AND activo = 1 LIMIT 1',
-      [login, login]
+      'SELECT * FROM usuarios WHERE username = ? AND activo = 1 LIMIT 1',
+      [login]
     )
 
     if (!rows.length) {
