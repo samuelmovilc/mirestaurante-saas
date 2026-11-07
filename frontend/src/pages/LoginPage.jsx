@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext'
 export default function LoginPage() {
   const { login } = useAuth()
   const navigate  = useNavigate()
-  const [email, setEmail]     = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError]     = useState('')
   const [loading, setLoading] = useState(false)
@@ -15,7 +15,7 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      await login(email.trim(), password)
+      await login(username.trim(), password)
       navigate('/admin')
     } catch (err) {
       setError(err.message || 'Credenciales incorrectas')
@@ -28,7 +28,7 @@ export default function LoginPage() {
     <div className="login-page">
       <div className="login-box">
         <div className="login-logo">
-          <div className="login-logo-icon">🍗</div>
+          <div className="login-logo-icon">🍽️</div>
           <h1>MiRestaurante</h1>
           <p>Panel de administración</p>
         </div>
@@ -38,13 +38,13 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit}>
             <div className="form-group">
-              <label className="label">Correo electrónico</label>
+              <label className="label">Usuario</label>
               <input
                 className="input"
-                type="email"
-                placeholder="admin@pollopos.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
+                type="text"
+                placeholder="Tu usuario"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
                 required
                 autoFocus
               />
