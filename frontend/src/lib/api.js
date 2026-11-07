@@ -1,6 +1,5 @@
-// Todas las llamadas al backend de tenant pasan por el proxy de Vercel (/api/tenant/*)
-// Esto evita Mixed Content: HTTPS frontend → HTTPS Vercel → HTTP Contabo
-const BASE = '/api/tenant'
+// Vercel reenvía /api/* → http://89.117.56.39:3010/api/* (server-to-server, sin Mixed Content)
+const BASE = ''
 
 function getToken() {
   return localStorage.getItem('token')

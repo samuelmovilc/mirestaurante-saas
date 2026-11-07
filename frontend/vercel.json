@@ -5,7 +5,8 @@
     { "src": "package.json", "use": "@vercel/static-build", "config": { "distDir": "dist" } }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "api/index.js" },
+    { "src": "/saas-api/(.*)", "dest": "api/index.js" },
+    { "src": "/api/(.*)", "dest": "http://89.117.56.39:3010/api/$1" },
     { "src": "/saas-admin", "dest": "/saas-admin.html" },
     { "src": "/saas-admin.html", "dest": "/saas-admin.html" },
     { "handle": "filesystem" },

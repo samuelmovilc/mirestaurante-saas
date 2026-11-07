@@ -49,7 +49,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // ── POST /api/saas/login ──
-app.post('/api/saas/login', async (req, res) => {
+app.post('/saas-api/saas/login', async (req, res) => {
   try {
     const { password } = req.body;
     if (!password) return res.status(400).json({ success: false, error: { code: 'MISSING_PASSWORD', message: 'Password requerido' } });
@@ -68,7 +68,7 @@ app.post('/api/saas/login', async (req, res) => {
 });
 
 // ── GET /api/saas/tenants ──
-app.get('/api/saas/tenants', saasAdminAuth, async (req, res) => {
+app.get('/saas-api/saas/tenants', saasAdminAuth, async (req, res) => {
   try {
     const [rows] = await masterPool.query(
       'SELECT id, nombre_negocio, slug, db_name, usuario_login, correo, telefono, fecha_inicio_licencia, fecha_fin_licencia, modulos, activo, observaciones, created_at FROM tenants ORDER BY id DESC'
@@ -80,7 +80,7 @@ app.get('/api/saas/tenants', saasAdminAuth, async (req, res) => {
 });
 
 // ── POST /api/saas/tenants ──
-app.post('/api/saas/tenants', saasAdminAuth, async (req, res) => {
+app.post('/saas-api/saas/tenants', saasAdminAuth, async (req, res) => {
   try {
     const { nombre_negocio, slug, usuario_login, password, correo, telefono, fecha_inicio_licencia, fecha_fin_licencia, modulos, observaciones } = req.body;
 
@@ -147,7 +147,7 @@ app.post('/api/saas/tenants', saasAdminAuth, async (req, res) => {
 });
 
 // ── PUT /api/saas/tenants/:id ──
-app.put('/api/saas/tenants/:id', saasAdminAuth, async (req, res) => {
+app.put('/saas-api/saas/tenants/:id', saasAdminAuth, async (req, res) => {
   try {
     const { nombre_negocio, usuario_login, password, correo, telefono, fecha_inicio_licencia, fecha_fin_licencia, modulos, observaciones } = req.body;
     let sets = [], values = [];
@@ -176,7 +176,7 @@ app.put('/api/saas/tenants/:id', saasAdminAuth, async (req, res) => {
 });
 
 // ── PATCH /api/saas/tenants/:id/toggle ──
-app.patch('/api/saas/tenants/:id/toggle', saasAdminAuth, async (req, res) => {
+app.patch('/saas-api/saas/tenants/:id/toggle', saasAdminAuth, async (req, res) => {
   try {
     const [rows] = await masterPool.query('SELECT activo FROM tenants WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
@@ -186,50 +186,6 @@ app.patch('/api/saas/tenants/:id/toggle', saasAdminAuth, async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
   }
-});
-
-// ── PROXY de Tenant → reenvía /api/tenant/* a Contabo :3010 ──
-// Vercel (HTTPS) → Contabo (HTTP) server-to-server: sin Mixed Content
-const http  = require('http');
-const TENANT_BACKEND_HOST = process.env.TENANT_BACKEND_HOST || '89.117.56.39';
-const TENANT_BACKEND_PORT = parseInt(process.env.TENANT_BACKEND_PORT) || 3010;
-
-app.all('/api/tenant/*', async (req, res) => {
-  // /api/tenant/api/auth/login → /api/auth/login
-  const targetPath = req.url.replace(/^\/api\/tenant/, '');
-
-  // Body ya parseado por express.json() → lo re-serializamos
-  const bodyStr = (req.method !== 'GET' && req.method !== 'HEAD' && req.body && Object.keys(req.body).length > 0)
-    ? JSON.stringify(req.body)
-    : null;
-
-  const options = {
-    hostname: TENANT_BACKEND_HOST,
-    port:     TENANT_BACKEND_PORT,
-    path:     targetPath,
-    method:   req.method,
-    headers:  {
-      'Content-Type':  'application/json',
-      ...(req.headers['authorization'] ? { 'Authorization': req.headers['authorization'] } : {}),
-      ...(req.headers['x-tenant']      ? { 'X-Tenant':      req.headers['x-tenant']      } : {}),
-      ...(bodyStr ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {}),
-    }
-  };
-
-  const proxyReq = http.request(options, (proxyRes) => {
-    res.status(proxyRes.statusCode);
-    res.setHeader('Content-Type', 'application/json');
-    let data = '';
-    proxyRes.on('data', chunk => { data += chunk; });
-    proxyRes.on('end',  () => { res.end(data); });
-  });
-
-  proxyReq.on('error', (err) => {
-    res.status(502).json({ success: false, error: { code: 'PROXY_ERROR', message: err.message } });
-  });
-
-  if (bodyStr) proxyReq.write(bodyStr);
-  proxyReq.end();
 });
 
 module.exports = app;
