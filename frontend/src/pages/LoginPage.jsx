@@ -72,7 +72,7 @@ export default function LoginPage() {
           </form>
 
           <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)', textAlign: 'center' }}>
-            <a href="/" style={{ color: 'var(--text3)', fontSize: 12, textDecoration: 'none' }}>
+            <a href={`/${window.location.search}`} style={{ color: 'var(--text3)', fontSize: 12, textDecoration: 'none' }}>
               ← Ir al formulario de pedidos
             </a>
           </div>

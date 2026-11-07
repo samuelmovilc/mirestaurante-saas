@@ -23,17 +23,23 @@ import MobileCarteraAdmin   from './pages/mobile/MobileCarteraAdmin'
 import MobileCosteoAdmin    from './pages/mobile/MobileCosteoAdmin'
 import MobileConfigAdmin    from './pages/mobile/MobileConfigAdmin'
 
+function getTenantParam() {
+  const p = new URLSearchParams(window.location.search)
+  const t = p.get('tenant') || localStorage.getItem('tenant') || ''
+  return t ? `?tenant=${t}` : ''
+}
+
 function PrivateRoute({ children }) {
   const { usuario, loading } = useAuth()
   if (loading) return <div className="loading-page"><div className="spinner" /></div>
-  if (!usuario) return <Navigate to="/login" replace />
+  if (!usuario) return <Navigate to={`/login${getTenantParam()}`} replace />
   return children
 }
 
 function PublicRoute({ children }) {
   const { usuario, loading } = useAuth()
   if (loading) return <div className="loading-page"><div className="spinner" /></div>
-  if (usuario) return <Navigate to="/admin" replace />
+  if (usuario) return <Navigate to={`/admin${getTenantParam()}`} replace />
   return children
 }
 
