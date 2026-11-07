@@ -35,10 +35,9 @@ export default function PedidoPage() {
     ]).then(([cfg, cats, mes, vends, prods]) => {
       setConfig(cfg.data || {})
       setCategorias(cats.data || [])
-      const activas = (mes.data || []).filter(m => m.activa)
-      setMesas(activas)
-      if (activas.length > 0) {
-        setMesaId(activas[0].id)
+      setMesas(mes.data || [])
+      if ((mes.data || []).length > 0) {
+        setMesaId(mes.data[0].id)
       }
       setVendedores((vends.data || []).filter(v => v.activo))
       setProductos(prods.data || [])

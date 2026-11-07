@@ -38,7 +38,7 @@ export default function MobilePedidoPage() {
     ]).then(([cfg, cats, mes, vends, prods]) => {
       setConfig(cfg.data || {})
       setCategorias(cats.data || [])
-      setMesas((mes.data || []).filter(m => m.activa))
+      setMesas(mes.data || [])
       setVendedores((vends.data || []).filter(v => v.activo))
       setProductos(prods.data || [])
     }).catch(console.error)
