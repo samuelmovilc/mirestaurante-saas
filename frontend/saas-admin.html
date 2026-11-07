@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MiRestaurante — Panel Admin SaaS</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2a2d3e;
+      --accent: #3b82f6;
+      --accent-h: #2563eb;
+      --green: #22c55e;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+    /* ── Login ── */
+    #login-screen {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 24px;
+    }
+    .login-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 40px; width: 100%; max-width: 380px;
+    }
+    .login-card h1 { font-size: 22px; margin-bottom: 6px; }
+    .login-card p  { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+    .login-card label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+    .login-card input {
+      width: 100%; background: var(--bg); border: 1px solid var(--border);
+      color: var(--text); padding: 10px 14px; border-radius: var(--radius);
+      font-size: 15px; margin-bottom: 20px; outline: none;
+    }
+    .login-card input:focus { border-color: var(--accent); }
+    #login-err { color: var(--red); font-size: 13px; margin-bottom: 14px; display: none; }
+
+    /* ── App shell ── */
+    #app { display: none; }
+    header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 14px 24px; display: flex; align-items: center; justify-content: space-between;
+    }
+    header h1 { font-size: 18px; }
+    header span { color: var(--muted); font-size: 13px; }
+    .btn-logout {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      padding: 6px 16px; border-radius: var(--radius); cursor: pointer; font-size: 13px;
+    }
+    .btn-logout:hover { border-color: var(--red); color: var(--red); }
+
+    main { padding: 28px 24px; max-width: 1300px; margin: 0 auto; }
+
+    /* ── Stats ── */
+    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 16px; margin-bottom: 28px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+    .stat-card .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .stat-card .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+
+    /* ── Toolbar ── */
+    .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .toolbar h2 { font-size: 16px; }
+
+    /* ── Buttons ── */
+    .btn { padding: 9px 20px; border-radius: var(--radius); border: none; cursor: pointer; font-size: 14px; font-weight: 500; transition: .15s; }
+    .btn-primary   { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-h); }
+    .btn-sm        { padding: 5px 12px; font-size: 12px; border-radius: 6px; border: none; cursor: pointer; }
+    .btn-green     { background: #16a34a; color: #fff; }
+    .btn-green:hover { background: #15803d; }
+    .btn-edit      { background: var(--accent); color: #fff; }
+    .btn-edit:hover { background: var(--accent-h); }
+    .btn-toggle    { background: #374151; color: var(--text); }
+    .btn-toggle:hover { background: #4b5563; }
+    .btn-wpp       { background: #25d366; color: #fff; }
+    .btn-wpp:hover { background: #1db954; }
+
+    /* ── Table ── */
+    .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th { background: #12151f; padding: 12px 16px; text-align: left; color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; }
+    tbody tr { border-top: 1px solid var(--border); }
+    tbody tr:hover { background: rgba(255,255,255,.03); }
+    tbody td { padding: 12px 16px; vertical-align: middle; }
+    .db-link { color: var(--accent); font-family: monospace; font-size: 12px; text-decoration: none; }
+
+    /* ── Badges ── */
+    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .badge-green  { background: rgba(34,197,94,.15);  color: var(--green); }
+    .badge-red    { background: rgba(239,68,68,.15);   color: var(--red); }
+    .badge-yellow { background: rgba(245,158,11,.15);  color: var(--yellow); }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    /* ── Modal ── */
+    .modal-backdrop {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.7); z-index: 100;
+      align-items: center; justify-content: center; padding: 24px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 32px; width: 100%; max-width: 540px;
+      max-height: 90vh; overflow-y: auto;
+    }
+    .modal h3 { font-size: 17px; margin-bottom: 24px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-group label { font-size: 12px; color: var(--muted); }
+    .form-group input, .form-group select, .form-group textarea {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 9px 12px; border-radius: var(--radius); font-size: 14px; outline: none;
+    }
+    .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+    .modulos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .modulos-grid label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+    .modal-footer { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+    .btn-cancel { background: var(--border); color: var(--text); }
+    .btn-cancel:hover { background: #374151; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 999;
+      background: #1e293b; border: 1px solid var(--border);
+      color: var(--text); padding: 12px 20px; border-radius: var(--radius);
+      font-size: 14px; display: none; box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    }
+    #toast.show { display: block; animation: fadeIn .2s; }
+    #toast.ok   { border-left: 3px solid var(--green); }
+    #toast.err  { border-left: 3px solid var(--red); }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+    /* ── Loading ── */
+    .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; margin: 60px auto; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <h1>🍗 MiRestaurante</h1>
+    <p>Panel de Control SaaS — Superadmin</p>
+    <label>Password de acceso</label>
+    <input type="password" id="login-pass" placeholder="••••••••" />
+    <div id="login-err">Password incorrecto</div>
+    <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Entrar</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header>
+    <h1>🍗 MiRestaurante <span style="font-weight:400;font-size:14px;color:var(--muted)">— Panel SaaS</span></h1>
+    <div style="display:flex;align-items:center;gap:16px">
+      <span id="hdr-count"></span>
+      <button class="btn-logout" onclick="logout()">↩ Salir</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="stats-row">
+      <div class="stat-card"><div class="label">Total clientes</div><div class="value" id="st-total">—</div></div>
+      <div class="stat-card"><div class="label">Activos</div><div class="value" style="color:var(--green)" id="st-activos">—</div></div>
+      <div class="stat-card"><div class="label">Inactivos</div><div class="value" style="color:var(--muted)" id="st-inactivos">—</div></div>
+      <div class="stat-card"><div class="label">Expirados</div><div class="value" style="color:var(--red)" id="st-expirados">—</div></div>
+    </div>
+
+    <div class="toolbar">
+      <h2>Clientes Registrados</h2>
+      <button class="btn btn-primary" onclick="openModal()">+ Nuevo Cliente</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Negocio</th>
+            <th>Usuario</th>
+            <th>Base de Datos</th>
+            <th>Licencia</th>
+            <th>Módulos</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tenants-tbody">
+          <tr><td colspan="8"><div class="spinner"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL CREAR / EDITAR -->
+<div class="modal-backdrop" id="modal">
+  <div class="modal">
+    <h3 id="modal-title">Nuevo Cliente</h3>
+    <input type="hidden" id="edit-id" />
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Nombre del Negocio *</label>
+        <input id="f-nombre" type="text" placeholder="Restaurante La Brasa" />
+      </div>
+      <div class="form-group">
+        <label>Usuario para Login *</label>
+        <input id="f-usuario" type="text" placeholder="labrasa" />
+      </div>
+      <div class="form-group">
+        <label>Slug URL * <small style="color:var(--muted)">(identificador único)</small></label>
+        <input id="f-slug" type="text" placeholder="labrasa" />
+      </div>
+      <div class="form-group">
+        <label>Password *</label>
+        <input id="f-password" type="text" placeholder="Dejar vacío = no cambia (edición)" />
+      </div>
+      <div class="form-group">
+        <label>Correo (opcional)</label>
+        <input id="f-correo" type="email" placeholder="dueño@correo.com" />
+      </div>
+      <div class="form-group">
+        <label>Teléfono (opcional)</label>
+        <input id="f-telefono" type="text" placeholder="300 000 0000" />
+      </div>
+      <div class="form-group">
+        <label>Inicio Licencia</label>
+        <input id="f-inicio" type="date" />
+      </div>
+      <div class="form-group">
+        <label>Fin Licencia <small style="color:var(--muted)">(vacío = ilimitada)</small></label>
+        <input id="f-fin" type="date" />
+      </div>
+      <div class="form-group full">
+        <label>Módulos Habilitados</label>
+        <div class="modulos-grid">
+          <label><input type="checkbox" value="pos"       class="mod-cb" checked /> POS (Ventas)</label>
+          <label><input type="checkbox" value="productos" class="mod-cb" checked /> Inventario / Productos</label>
+          <label><input type="checkbox" value="cartera"   class="mod-cb" /> Cartera / Créditos</label>
+          <label><input type="checkbox" value="finanzas"  class="mod-cb" checked /> Finanzas / Informes</label>
+          <label><input type="checkbox" value="config"    class="mod-cb" checked /> Configuración</label>
+          <label><input type="checkbox" value="ordenes"   class="mod-cb" /> Órdenes de Servicio</label>
+        </div>
+      </div>
+      <div class="form-group full">
+        <label>Observaciones</label>
+        <textarea id="f-obs" rows="2" placeholder="Notas internas..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" id="btn-save" onclick="saveTenant()">Guardar Cliente</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  const API = '/api/saas'
+  let token = sessionStorage.getItem('saas_token') || ''
+  let tenants = []
+
+  // ── Auth ──────────────────────────────────────────────────
+  async function doLogin() {
+    const pass = document.getElementById('login-pass').value
+    document.getElementById('login-err').style.display = 'none'
+    try {
+      const r = await fetch(`${API}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pass })
+      })
+      const d = await r.json()
+      if (!d.success) throw new Error()
+      token = d.data.token
+      sessionStorage.setItem('saas_token', token)
+      document.getElementById('login-screen').style.display = 'none'
+      document.getElementById('app').style.display = 'block'
+      loadTenants()
+    } catch {
+      document.getElementById('login-err').style.display = 'block'
+    }
+  }
+
+  document.getElementById('login-pass').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin()
+  })
+
+  function logout() {
+    sessionStorage.removeItem('saas_token')
+    token = ''
+    document.getElementById('login-screen').style.display = 'flex'
+    document.getElementById('app').style.display = 'none'
+  }
+
+  if (token) {
+    document.getElementById('login-screen').style.display = 'none'
+    document.getElementById('app').style.display = 'block'
+    loadTenants()
+  }
+
+  // ── Load tenants ──────────────────────────────────────────
+  async function loadTenants() {
+    try {
+      const r = await fetch(`${API}/tenants`, { headers: { Authorization: `Bearer ${token}` } })
+      if (r.status === 401) { logout(); return; }
+      const d = await r.json()
+      tenants = d.data || []
+      renderTable()
+      renderStats()
+    } catch (err) {
+      toast('Error al cargar clientes', 'err')
+    }
+  }
+
+  function licenseStatus(t) {
+    if (!t.activo) return { label: 'Inactivo', cls: 'badge-red' }
+    if (t.fecha_fin_licencia) {
+      const fin = new Date(t.fecha_fin_licencia)
+      if (new Date() > fin) return { label: 'Expirada', cls: 'badge-yellow' }
+    }
+    return { label: 'Activo', cls: 'badge-green' }
+  }
+
+  function renderTable() {
+    const tb = document.getElementById('tenants-tbody')
+    if (!tenants.length) {
+      tb.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:40px">Sin clientes registrados aún</td></tr>'
+      return
+    }
+    tb.innerHTML = tenants.map(t => {
+      const st  = licenseStatus(t)
+      const fin = t.fecha_fin_licencia
+        ? new Date(t.fecha_fin_licencia).toLocaleDateString('es-CO')
+        : 'Ilimitada'
+      const mods = (t.modulos || '').split(',').join(', ')
+      const toggleLabel = t.activo ? 'Desactivar' : 'Activar'
+      return `<tr>
+        <td style="color:var(--muted)">${t.id}</td>
+        <td><strong>${t.nombre_negocio}</strong><br><small style="color:var(--muted)">${t.usuario_login}</small></td>
+        <td style="color:var(--muted)">${t.usuario_login}</td>
+        <td><a class="db-link" title="${t.db_name}">${t.db_name}</a></td>
+        <td style="font-size:12px">${fin}</td>
+        <td style="color:var(--muted);font-size:12px;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${mods}</td>
+        <td><span class="badge ${st.cls}"><span class="dot"></span>${st.label}</span></td>
+        <td>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${t.telefono ? `<button class="btn-sm btn-wpp" onclick="openWpp('${t.telefono}','${t.nombre_negocio}')">W</button>` : ''}
+            <button class="btn-sm btn-edit" onclick="openEdit(${t.id})">✏ Editar</button>
+            <button class="btn-sm btn-toggle" onclick="toggleTenant(${t.id})">${toggleLabel}</button>
+          </div>
+        </td>
+      </tr>`
+    }).join('')
+  }
+
+  function renderStats() {
+    const ahora = new Date()
+    let activos = 0, inactivos = 0, expirados = 0
+    tenants.forEach(t => {
+      if (!t.activo) { inactivos++; return }
+      if (t.fecha_fin_licencia && ahora > new Date(t.fecha_fin_licencia)) { expirados++; return }
+      activos++
+    })
+    document.getElementById('st-total').textContent    = tenants.length
+    document.getElementById('st-activos').textContent  = activos
+    document.getElementById('st-inactivos').textContent= inactivos
+    document.getElementById('st-expirados').textContent= expirados
+    document.getElementById('hdr-count').textContent   = `${tenants.length} clientes`
+  }
+
+  // ── WhatsApp ──────────────────────────────────────────────
+  function openWpp(tel, nombre) {
+    const num = tel.replace(/\D/g, '')
+    const msg = encodeURIComponent(`Hola ${nombre}, te escribimos desde MiRestaurante.`)
+    window.open(`https://wa.me/57${num}?text=${msg}`, '_blank')
+  }
+
+  // ── Modal crear ───────────────────────────────────────────
+  function openModal() {
+    document.getElementById('modal-title').textContent = 'Nuevo Cliente'
+    document.getElementById('edit-id').value = ''
+    document.getElementById('f-nombre').value  = ''
+    document.getElementById('f-usuario').value = ''
+    document.getElementById('f-slug').value    = ''
+    document.getElementById('f-password').value= ''
+    document.getElementById('f-correo').value  = ''
+    document.getElementById('f-telefono').value= ''
+    document.getElementById('f-inicio').value  = new Date().toISOString().slice(0,10)
+    document.getElementById('f-fin').value     = ''
+    document.getElementById('f-obs').value     = ''
+    document.querySelectorAll('.mod-cb').forEach(cb => {
+      cb.checked = ['pos','productos','finanzas','config'].includes(cb.value)
+    })
+    document.getElementById('modal').classList.add('open')
+  }
+
+  function openEdit(id) {
+    const t = tenants.find(x => x.id === id)
+    if (!t) return
+    document.getElementById('modal-title').textContent = `Editar Cliente: ${t.nombre_negocio}`
+    document.getElementById('edit-id').value   = t.id
+    document.getElementById('f-nombre').value  = t.nombre_negocio
+    document.getElementById('f-usuario').value = t.usuario_login
+    document.getElementById('f-slug').value    = t.slug
+    document.getElementById('f-slug').disabled = true
+    document.getElementById('f-password').value= ''
+    document.getElementById('f-password').placeholder = 'Dejar vacío = no cambiar'
+    document.getElementById('f-correo').value  = t.correo || ''
+    document.getElementById('f-telefono').value= t.telefono || ''
+    document.getElementById('f-inicio').value  = t.fecha_inicio_licencia ? t.fecha_inicio_licencia.slice(0,10) : ''
+    document.getElementById('f-fin').value     = t.fecha_fin_licencia    ? t.fecha_fin_licencia.slice(0,10)    : ''
+    document.getElementById('f-obs').value     = t.observaciones || ''
+    const mods = (t.modulos || '').split(',')
+    document.querySelectorAll('.mod-cb').forEach(cb => { cb.checked = mods.includes(cb.value) })
+    document.getElementById('modal').classList.add('open')
+  }
+
+  function closeModal() {
+    document.getElementById('modal').classList.remove('open')
+    document.getElementById('f-slug').disabled = false
+  }
+
+  async function saveTenant() {
+    const editId = document.getElementById('edit-id').value
+    const mods   = [...document.querySelectorAll('.mod-cb:checked')].map(c => c.value).join(',')
+    const body   = {
+      nombre_negocio:        document.getElementById('f-nombre').value.trim(),
+      usuario_login:         document.getElementById('f-usuario').value.trim(),
+      slug:                  document.getElementById('f-slug').value.trim().toLowerCase(),
+      password:              document.getElementById('f-password').value,
+      correo:                document.getElementById('f-correo').value.trim(),
+      telefono:              document.getElementById('f-telefono').value.trim(),
+      fecha_inicio_licencia: document.getElementById('f-inicio').value || null,
+      fecha_fin_licencia:    document.getElementById('f-fin').value    || null,
+      modulos:               mods,
+      observaciones:         document.getElementById('f-obs').value.trim(),
+    }
+
+    if (!body.nombre_negocio || !body.usuario_login) {
+      toast('Nombre y usuario son obligatorios', 'err'); return
+    }
+    if (!editId && !body.password) {
+      toast('Password obligatorio para nuevo cliente', 'err'); return
+    }
+
+    const btn = document.getElementById('btn-save')
+    btn.disabled = true; btn.textContent = 'Guardando...'
+
+    try {
+      const url    = editId ? `${API}/tenants/${editId}` : `${API}/tenants`
+      const method = editId ? 'PUT' : 'POST'
+      const r = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body)
+      })
+      const d = await r.json()
+      if (!d.success) throw new Error(d.error?.message || 'Error')
+      toast(editId ? 'Cliente actualizado ✓' : 'Cliente creado y BD lista ✓', 'ok')
+      closeModal()
+      loadTenants()
+    } catch (err) {
+      toast(err.message, 'err')
+    } finally {
+      btn.disabled = false; btn.textContent = 'Guardar Cliente'
+    }
+  }
+
+  // ── Toggle activo ─────────────────────────────────────────
+  async function toggleTenant(id) {
+    try {
+      const r = await fetch(`${API}/tenants/${id}/toggle`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      const d = await r.json()
+      if (!d.success) throw new Error()
+      toast('Estado actualizado ✓', 'ok')
+      loadTenants()
+    } catch { toast('Error al cambiar estado', 'err') }
+  }
+
+  // ── Toast ─────────────────────────────────────────────────
+  let toastTimer
+  function toast(msg, type = 'ok') {
+    const el = document.getElementById('toast')
+    el.textContent = msg
+    el.className   = `show ${type}`
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => { el.className = '' }, 3500)
+  }
+
+  // Cerrar modal con Escape
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal()
+  })
+  document.getElementById('modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('modal')) closeModal()
+  })
+</script>
+</body>
+</html>
