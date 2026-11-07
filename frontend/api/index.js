@@ -188,4 +188,45 @@ app.patch('/api/saas/tenants/:id/toggle', saasAdminAuth, async (req, res) => {
   }
 });
 
+// ── PROXY de Tenant → reenvía /api/tenant/* a Contabo :3010 ──
+// Evita Mixed Content: el frontend llama HTTPS a Vercel, Vercel llama HTTP a Contabo
+const http = require('http');
+const TENANT_BACKEND = process.env.TENANT_BACKEND_URL || 'http://89.117.56.39:3010';
+
+app.all('/api/tenant/*', (req, res) => {
+  // Strip /api/tenant prefix → /api/...
+  const targetPath = req.url.replace(/^\/api\/tenant/, '');
+  const targetUrl  = new URL(targetPath, TENANT_BACKEND);
+
+  const options = {
+    hostname: targetUrl.hostname,
+    port:     targetUrl.port || 3010,
+    path:     targetUrl.pathname + targetUrl.search,
+    method:   req.method,
+    headers:  {
+      'Content-Type':  req.headers['content-type']  || 'application/json',
+      'Authorization': req.headers['authorization'] || '',
+      'X-Tenant':      req.headers['x-tenant']      || '',
+    }
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    res.status(proxyRes.statusCode);
+    Object.entries(proxyRes.headers).forEach(([k, v]) => res.setHeader(k, v));
+    proxyRes.pipe(res, { end: true });
+  });
+
+  proxyReq.on('error', (err) => {
+    res.status(502).json({ success: false, error: { code: 'PROXY_ERROR', message: err.message } });
+  });
+
+  if (req.body && Object.keys(req.body).length > 0) {
+    const body = JSON.stringify(req.body);
+    proxyReq.setHeader('Content-Length', Buffer.byteLength(body));
+    proxyReq.write(body);
+  }
+
+  proxyReq.end();
+});
+
 module.exports = app;
