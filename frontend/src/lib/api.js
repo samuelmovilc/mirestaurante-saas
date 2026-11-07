@@ -64,11 +64,12 @@ export const api = {
   updateCategoria: (id, data) => request(`/api/categorias/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCategoria: (id)   => request(`/api/categorias/${id}`, { method: 'DELETE' }),
 
-  // MESAS (público)
-  getMesas:   ()     => request('/api/mesas'),
-  createMesa: (data) => request('/api/mesas', { method: 'POST', body: JSON.stringify(data) }),
-  updateMesa: (id, data) => request(`/api/mesas/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  deleteMesa: (id)   => request(`/api/mesas/${id}`, { method: 'DELETE' }),
+  // MESAS
+  getMesas:      ()     => request('/api/mesas'),           // solo activas (formulario pedidos)
+  getMesasAdmin: ()     => request('/api/mesas?todos=1'),   // todas (panel admin)
+  createMesa:    (data) => request('/api/mesas', { method: 'POST', body: JSON.stringify(data) }),
+  updateMesa:    (id, data) => request(`/api/mesas/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteMesa:    (id)   => request(`/api/mesas/${id}`, { method: 'DELETE' }),
 
   // VENDEDORES
   getVendedores:   ()     => request('/api/vendedores'),

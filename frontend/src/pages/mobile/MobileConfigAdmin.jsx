@@ -23,7 +23,7 @@ export default function MobileConfigAdmin() {
   const [activeSection, setActiveSection] = useState(null) // 'general', 'mesas', 'cats', 'vends', 'mps', 'form_mesa', 'form_cat', 'form_vend', 'form_mp'
 
   // Data
-  const [mesas, reloadMesas] = useList(api.getMesas)
+  const [mesas, reloadMesas] = useList(api.getMesasAdmin)
   const [cats, reloadCats]   = useList(api.getCategorias)
   const [vends, reloadVends] = useList(api.getVendedores)
   const [mps, reloadMps]     = useList(api.getMetodosPago)

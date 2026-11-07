@@ -8,7 +8,10 @@ function makeRouter(table, fields) {
 
   r.get('/', async (req, res) => {
     try {
-      const [rows] = await req.tenantPool.query(`SELECT * FROM ${table} ORDER BY id ASC`)
+      // ?todos=1 → devuelve todas incluyendo inactivas (para panel admin)
+      // sin param → solo activas (para formulario de pedidos)
+      const filtro = req.query.todos === '1' ? '' : ' WHERE activo = 1'
+      const [rows] = await req.tenantPool.query(`SELECT * FROM ${table}${filtro} ORDER BY id ASC`)
       res.json({ success: true, data: rows })
     } catch (err) { res.status(500).json({ success: false, error: { message: err.message } }) }
   })

@@ -19,7 +19,7 @@ export default function ConfigAdmin() {
   const [saving, setSaving]   = useState(false)
 
   // Mesas
-  const [mesas, reloadMesas]       = useList(api.getMesas)
+  const [mesas, reloadMesas]       = useList(api.getMesasAdmin)
   const [mesaModal, setMesaModal]  = useState(false)
   const [mesaForm, setMesaForm]    = useState({ nombre: '', activo: 1 })
   const [mesaEditId, setMesaEditId]= useState(null)
