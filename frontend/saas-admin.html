@@ -379,9 +379,8 @@
 
   // ── WhatsApp ──────────────────────────────────────────────
   function openWpp(tel, nombre, usuario, slug) {
-    const num = tel.replace(/\D/g, '')
     const url = `https://mirestaurante-saas-frontend.vercel.app/?tenant=${slug}`
-    const msg = encodeURIComponent(
+    const msg =
 `🍽️ ¡Bienvenido a *MiRestaurante*!
 
 Hola, nos complace informarte que tu sistema de gestión *${nombre}* ya está listo y activo. 🎉
@@ -394,8 +393,12 @@ Aquí están tus datos de acceso:
 
 Desde tu panel podrás gestionar pedidos, productos, caja, costeo de recetas y más.
 
-Si tienes alguna duda, con gusto te ayudamos. ¡Mucho éxito! 🚀`)
-    window.open(`https://wa.me/57${num}?text=${msg}`, '_blank')
+Si tienes alguna duda, con gusto te ayudamos. ¡Mucho éxito! 🚀`
+    navigator.clipboard.writeText(msg).then(() => {
+      alert('✅ Mensaje copiado al portapapeles. Pégalo en WhatsApp.')
+    }).catch(() => {
+      prompt('Copia este mensaje:', msg)
+    })
   }
 
   // ── Modal crear ───────────────────────────────────────────
