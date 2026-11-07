@@ -121,7 +121,7 @@ export default function PedidoPage() {
             {config.logo_url ? <img src={config.logo_url} alt="logo" /> : '🍗'}
           </div>
           <div>
-            <h1>{config.nombre_negocio || 'Amarillo Pollo'}</h1>
+            <h1>{config.nombre_negocio || 'MiRestaurante'}</h1>
             <p style={{ fontSize: 10, color: 'var(--text3)' }}>{config.slogan || 'Toma de pedidos'}</p>
           </div>
         </div>

@@ -16,7 +16,7 @@ export default function AdminLayout() {
   const { usuario, logout } = useAuth()
   const navigate = useNavigate()
   const [logoUrl, setLogoUrl] = useState(null)
-  const [nombre, setNombre]   = useState('Amarillo Pollo')
+  const [nombre, setNombre]   = useState('MiRestaurante')
 
   useEffect(() => {
     api.getConfig().then(r => {

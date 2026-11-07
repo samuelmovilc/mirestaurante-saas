@@ -29,7 +29,7 @@ export default function LoginPage() {
       <div className="login-box">
         <div className="login-logo">
           <div className="login-logo-icon">🍗</div>
-          <h1>Amarillo Pollo</h1>
+          <h1>MiRestaurante</h1>
           <p>Panel de administración</p>
         </div>
 
