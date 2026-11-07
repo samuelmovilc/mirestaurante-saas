@@ -90,8 +90,10 @@ export default function MobilePedidoPage() {
         observaciones: obs || null,
         items: carrito.map(it => ({
           producto_id: it.id,
+          nombre_producto: it.nombre,
           cantidad: it.cantidad,
           precio_unitario: it.precio_venta,
+          precio_costo: it.precio_costo || 0,
         })),
       })
       toast(`Pedido enviado con éxito (#${res.data.numero_pedido})`, 'success', 4000)

@@ -88,8 +88,10 @@ export default function PedidoPage() {
         observaciones: obs || null,
         items: carrito.map(it => ({
           producto_id: it.id,
+          nombre_producto: it.nombre,
           cantidad: it.cantidad,
           precio_unitario: it.precio_venta,
+          precio_costo: it.precio_costo || 0,
         })),
       })
       toast(`Pedido #${res.data.numero_pedido} enviado — Total: ${fmt(res.data.total)}`, 'success', 4000)
