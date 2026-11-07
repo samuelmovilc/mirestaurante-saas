@@ -72,10 +72,24 @@ export default function ProductosAdmin() {
   }
 
   function descargarPlantilla() {
-    const csv = 'Nombre;Categoría;Descripción;Precio Venta;Precio Costo;Visible (Si/No);Estado (Activo/Inactivo)\nCombo Ejemplo;Combos;Descripción del producto;24000;10000;Si;Activo\nLeche vaporizada entera;Bebidas;Leche caliente;5000;2000;Si;Activo\n'
+    const csv = 'Nombre,Categoría,Descripción,Precio Venta,Precio Costo,Visible (Si/No),Estado (Activo/Inactivo)\nCombo Ejemplo,Combos,Descripción del producto,24000,10000,Si,Activo\n"Cappuccino,leche vaporizada",Cafetería,"Espresso con leche",8900,4000,Si,Activo\n'
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a'); a.href = url; a.download = 'plantilla_productos.csv'; a.click()
+  }
+
+  // Parser CSV que respeta campos entre comillas
+  function parseCSVLine(line) {
+    const cols = []
+    let cur = '', inQ = false
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i]
+      if (c === '"') { inQ = !inQ }
+      else if (c === ',' && !inQ) { cols.push(cur.trim()); cur = '' }
+      else { cur += c }
+    }
+    cols.push(cur.trim())
+    return cols
   }
 
   function importarCSV(e) {
@@ -86,7 +100,7 @@ export default function ProductosAdmin() {
       if (lines.length < 2) return toast('Archivo vacío', 'error')
       const items = []
       for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(';').map(c => c.trim())
+        const cols = parseCSVLine(lines[i])
         if (cols.length < 4) continue
         items.push({ nombre: cols[0], categoria_nombre: cols[1], descripcion: cols[2], precio_venta: cols[3], precio_costo: cols[4] || '0', visible_formulario: cols[5], estado: cols[6] })
       }
