@@ -222,7 +222,7 @@ export function downloadCuadrePDF(h, config) {
   
   doc.setFont("helvetica", "normal")
   doc.setFontSize(9)
-  doc.text("Sistema de Caja - Pollo POS", 40, y, { align: "center" })
+  doc.text("MiRestaurante — Sistema de Caja", 40, y, { align: "center" })
   
   doc.save(`Cuadre_Caja_Turno_${h.id}.pdf`)
 }

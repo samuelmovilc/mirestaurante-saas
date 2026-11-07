@@ -2,10 +2,37 @@ const express = require('express')
 const { authMiddleware, soloAdmin } = require('../middleware/auth')
 const router = express.Router()
 
+async function enriquecerTurno(turno, pool) {
+  if (!turno) return null
+  // Calcular ingresos reales desde ventas del turno
+  const [[{ ingresos }]] = await pool.query(
+    `SELECT COALESCE(SUM(total),0) AS ingresos FROM ventas
+     WHERE estado='aceptada' AND created_at >= ? AND (? IS NULL OR created_at <= ?)`,
+    [turno.fecha_apertura, turno.fecha_cierre, turno.fecha_cierre]
+  )
+  // Calcular gastos reales desde caja_gastos
+  const [[{ gastos }]] = await pool.query(
+    `SELECT COALESCE(SUM(monto),0) AS gastos FROM caja_gastos WHERE turno_id = ?`,
+    [turno.id]
+  )
+  const saldo_inicial        = parseFloat(turno.base_caja || 0)
+  const saldo_final_calculado = saldo_inicial + parseFloat(ingresos) - parseFloat(gastos)
+  return {
+    ...turno,
+    saldo_inicial,
+    ingresos:              parseFloat(ingresos),
+    gastos:                parseFloat(gastos),
+    saldo_final_calculado,
+    usuario_apertura:      turno.usuario_apertura || null,
+    usuario_cierre:        turno.usuario_cierre   || null,
+  }
+}
+
 router.get('/turno-abierto', authMiddleware, async (req, res) => {
   try {
     const [rows] = await req.tenantPool.query('SELECT * FROM turnos_caja WHERE estado = "abierto" ORDER BY id DESC LIMIT 1')
-    res.json({ success: true, data: rows[0] || null })
+    const turno = await enriquecerTurno(rows[0] || null, req.tenantPool)
+    res.json({ success: true, data: turno })
   } catch (err) { res.status(500).json({ success: false, error: { message: err.message } }) }
 })
 
@@ -44,7 +71,8 @@ router.post('/gastos', authMiddleware, soloAdmin, async (req, res) => {
 router.get('/historico', authMiddleware, async (req, res) => {
   try {
     const [rows] = await req.tenantPool.query('SELECT * FROM turnos_caja ORDER BY id DESC LIMIT 30')
-    res.json({ success: true, data: rows })
+    const enriquecidos = await Promise.all(rows.map(t => enriquecerTurno(t, req.tenantPool)))
+    res.json({ success: true, data: enriquecidos })
   } catch (err) { res.status(500).json({ success: false, error: { message: err.message } }) }
 })
 
