@@ -189,43 +189,46 @@ app.patch('/api/saas/tenants/:id/toggle', saasAdminAuth, async (req, res) => {
 });
 
 // ── PROXY de Tenant → reenvía /api/tenant/* a Contabo :3010 ──
-// Evita Mixed Content: el frontend llama HTTPS a Vercel, Vercel llama HTTP a Contabo
-const http = require('http');
-const TENANT_BACKEND = process.env.TENANT_BACKEND_URL || 'http://89.117.56.39:3010';
+// Vercel (HTTPS) → Contabo (HTTP) server-to-server: sin Mixed Content
+const http  = require('http');
+const TENANT_BACKEND_HOST = process.env.TENANT_BACKEND_HOST || '89.117.56.39';
+const TENANT_BACKEND_PORT = parseInt(process.env.TENANT_BACKEND_PORT) || 3010;
 
-app.all('/api/tenant/*', (req, res) => {
-  // Strip /api/tenant prefix → /api/...
+app.all('/api/tenant/*', async (req, res) => {
+  // /api/tenant/api/auth/login → /api/auth/login
   const targetPath = req.url.replace(/^\/api\/tenant/, '');
-  const targetUrl  = new URL(targetPath, TENANT_BACKEND);
+
+  // Body ya parseado por express.json() → lo re-serializamos
+  const bodyStr = (req.method !== 'GET' && req.method !== 'HEAD' && req.body && Object.keys(req.body).length > 0)
+    ? JSON.stringify(req.body)
+    : null;
 
   const options = {
-    hostname: targetUrl.hostname,
-    port:     targetUrl.port || 3010,
-    path:     targetUrl.pathname + targetUrl.search,
+    hostname: TENANT_BACKEND_HOST,
+    port:     TENANT_BACKEND_PORT,
+    path:     targetPath,
     method:   req.method,
     headers:  {
-      'Content-Type':  req.headers['content-type']  || 'application/json',
-      'Authorization': req.headers['authorization'] || '',
-      'X-Tenant':      req.headers['x-tenant']      || '',
+      'Content-Type':  'application/json',
+      ...(req.headers['authorization'] ? { 'Authorization': req.headers['authorization'] } : {}),
+      ...(req.headers['x-tenant']      ? { 'X-Tenant':      req.headers['x-tenant']      } : {}),
+      ...(bodyStr ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {}),
     }
   };
 
   const proxyReq = http.request(options, (proxyRes) => {
     res.status(proxyRes.statusCode);
-    Object.entries(proxyRes.headers).forEach(([k, v]) => res.setHeader(k, v));
-    proxyRes.pipe(res, { end: true });
+    res.setHeader('Content-Type', 'application/json');
+    let data = '';
+    proxyRes.on('data', chunk => { data += chunk; });
+    proxyRes.on('end',  () => { res.end(data); });
   });
 
   proxyReq.on('error', (err) => {
     res.status(502).json({ success: false, error: { code: 'PROXY_ERROR', message: err.message } });
   });
 
-  if (req.body && Object.keys(req.body).length > 0) {
-    const body = JSON.stringify(req.body);
-    proxyReq.setHeader('Content-Length', Buffer.byteLength(body));
-    proxyReq.write(body);
-  }
-
+  if (bodyStr) proxyReq.write(bodyStr);
   proxyReq.end();
 });
 
