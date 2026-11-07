@@ -353,7 +353,7 @@
         <td><span class="badge ${st.cls}"><span class="dot"></span>${st.label}</span></td>
         <td>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
-            ${t.telefono ? `<button class="btn-sm btn-wpp" onclick="openWpp('${t.telefono}','${t.nombre_negocio}')">W</button>` : ''}
+            ${t.telefono ? `<button class="btn-sm btn-wpp" onclick="openWpp('${t.telefono}','${t.nombre_negocio}','${t.usuario_login}','${t.slug}')">W</button>` : ''}
             <button class="btn-sm btn-edit" onclick="openEdit(${t.id})">✏ Editar</button>
             <button class="btn-sm btn-toggle" onclick="toggleTenant(${t.id})">${toggleLabel}</button>
           </div>
@@ -378,9 +378,23 @@
   }
 
   // ── WhatsApp ──────────────────────────────────────────────
-  function openWpp(tel, nombre) {
+  function openWpp(tel, nombre, usuario, slug) {
     const num = tel.replace(/\D/g, '')
-    const msg = encodeURIComponent(`Hola ${nombre}, te escribimos desde MiRestaurante.`)
+    const url = `https://mirestaurante-saas-frontend.vercel.app/?tenant=${slug}`
+    const msg = encodeURIComponent(
+`🍽️ ¡Bienvenido a *MiRestaurante*!
+
+Hola, nos complace informarte que tu sistema de gestión *${nombre}* ya está listo y activo. 🎉
+
+Aquí están tus datos de acceso:
+
+👤 *Usuario:* ${usuario}
+🔑 *Contraseña:* (la que registraste al crear tu cuenta)
+🌐 *Enlace de acceso:* ${url}
+
+Desde tu panel podrás gestionar pedidos, productos, caja, costeo de recetas y más.
+
+Si tienes alguna duda, con gusto te ayudamos. ¡Mucho éxito! 🚀`)
     window.open(`https://wa.me/57${num}?text=${msg}`, '_blank')
   }
 
