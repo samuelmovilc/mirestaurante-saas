@@ -6,8 +6,11 @@ router.get('/', async (req, res) => {
   try {
     const { estado, fecha } = req.query
     let sql = `SELECT p.*,
+               p.numero        AS numero_pedido,
+               p.cliente_nombre AS nombre_cliente,
+               p.tipo          AS tipo_pedido,
                GROUP_CONCAT(CONCAT(pd.cantidad,'x ',pd.nombre_producto) SEPARATOR ' + ') AS detalle_resumen,
-               SUM(pd.subtotal) AS subtotal_items
+               COALESCE(SUM(pd.subtotal), 0) AS total
                FROM pedidos p
                LEFT JOIN pedido_detalle pd ON pd.pedido_id = p.id
                WHERE 1=1`
@@ -22,10 +25,13 @@ router.get('/', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
-    const [[p]] = await req.tenantPool.query('SELECT * FROM pedidos WHERE id = ?', [req.params.id])
+    const [[p]] = await req.tenantPool.query(
+      `SELECT p.*, p.numero AS numero_pedido, p.cliente_nombre AS nombre_cliente, p.tipo AS tipo_pedido
+       FROM pedidos p WHERE p.id = ?`, [req.params.id])
     if (!p) return res.status(404).json({ success: false, error: { message: 'Pedido no encontrado' } })
     const [det] = await req.tenantPool.query('SELECT * FROM pedido_detalle WHERE pedido_id = ?', [req.params.id])
-    res.json({ success: true, data: { ...p, detalle: det } })
+    const total = det.reduce((s, d) => s + Number(d.subtotal || 0), 0)
+    res.json({ success: true, data: { ...p, detalle: det, total } })
   } catch (err) { res.status(500).json({ success: false, error: { message: err.message } }) }
 })
 
