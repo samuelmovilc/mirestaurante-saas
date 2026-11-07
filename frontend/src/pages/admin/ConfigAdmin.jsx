@@ -21,13 +21,13 @@ export default function ConfigAdmin() {
   // Mesas
   const [mesas, reloadMesas]       = useList(api.getMesas)
   const [mesaModal, setMesaModal]  = useState(false)
-  const [mesaForm, setMesaForm]    = useState({ nombre: '', activa: 1 })
+  const [mesaForm, setMesaForm]    = useState({ nombre: '', activo: 1 })
   const [mesaEditId, setMesaEditId]= useState(null)
 
   // Categorías
   const [cats, reloadCats]         = useList(api.getCategorias)
   const [catModal, setCatModal]    = useState(false)
-  const [catForm, setCatForm]      = useState({ nombre: '', icono: '', activa: 1 })
+  const [catForm, setCatForm]      = useState({ nombre: '', icono: '', activo: 1 })
   const [catEditId, setCatEditId]  = useState(null)
 
   // Vendedores
@@ -73,7 +73,7 @@ export default function ConfigAdmin() {
   }
 
   // MESAS
-  function abrirMesa(m = null) { setMesaEditId(m?.id || null); setMesaForm(m ? { nombre: m.nombre, activa: m.activa } : { nombre: '', activa: 1 }); setMesaModal(true) }
+  function abrirMesa(m = null) { setMesaEditId(m?.id || null); setMesaForm(m ? { nombre: m.nombre, activo: m.activo } : { nombre: '', activo: 1 }); setMesaModal(true) }
   async function guardarMesa() {
     if (!mesaForm.nombre) return toast('Nombre requerido', 'error')
     try {
@@ -89,7 +89,7 @@ export default function ConfigAdmin() {
   }
 
   // CATEGORÍAS
-  function abrirCat(c = null) { setCatEditId(c?.id || null); setCatForm(c ? { nombre: c.nombre, icono: c.icono, activa: c.activa } : { nombre: '', icono: '', activa: 1 }); setCatModal(true) }
+  function abrirCat(c = null) { setCatEditId(c?.id || null); setCatForm(c ? { nombre: c.nombre, icono: c.icono, activo: c.activo } : { nombre: '', icono: '', activo: 1 }); setCatModal(true) }
   async function guardarCat() {
     if (!catForm.nombre) return toast('Nombre requerido', 'error')
     try {
@@ -222,7 +222,7 @@ export default function ConfigAdmin() {
                   {mesas.map(m => (
                     <tr key={m.id}>
                       <td><strong>{m.nombre}</strong></td>
-                      <td><span className={`badge ${m.activa ? 'badge-green' : 'badge-red'}`}>{m.activa ? 'Activa' : 'Inactiva'}</span></td>
+                      <td><span className={`badge ${m.activo ? 'badge-green' : 'badge-red'}`}>{m.activo ? 'Activa' : 'Inactiva'}</span></td>
                       <td><div style={{ display: 'flex', gap: 4 }}><button className="btn btn-ghost btn-xs" onClick={() => abrirMesa(m)}>Editar</button><button className="btn btn-danger btn-xs" onClick={() => eliminarMesa(m.id)}>Eliminar</button></div></td>
                     </tr>
                   ))}
@@ -332,7 +332,7 @@ export default function ConfigAdmin() {
           <div className="modal-box" style={{ maxWidth: 360 }}>
             <h3>{mesaEditId ? 'Editar mesa' : 'Nueva mesa'}</h3>
             <div className="form-group"><label className="label">Nombre</label><input className="input" value={mesaForm.nombre} onChange={e => setMesaForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej. Mesa 5, Terraza, Barra VIP" autoFocus /></div>
-            <div className="form-group"><label className="label">Estado</label><select className="select" value={mesaForm.activa} onChange={e => setMesaForm(f => ({ ...f, activa: parseInt(e.target.value) }))}><option value={1}>Activa</option><option value={0}>Inactiva</option></select></div>
+            <div className="form-group"><label className="label">Estado</label><select className="select" value={mesaForm.activo} onChange={e => setMesaForm(f => ({ ...f, activo: parseInt(e.target.value) }))}><option value={1}>Activa</option><option value={0}>Inactiva</option></select></div>
             <div className="modal-footer"><button className="btn btn-ghost" onClick={() => setMesaModal(false)}>Cancelar</button><button className="btn btn-primary" onClick={guardarMesa}>Guardar</button></div>
           </div>
         </div>
