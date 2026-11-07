@@ -150,7 +150,7 @@ export default function PedidosAdmin() {
       if (yaLiquidado) {
         // Buscar la venta asociada a este pedido
         const ventasRes = await api.getVentas({ pedido_id: ped.id })
-        const ventaActiva = (ventasRes.data || []).find(v => v.estado === 'ACEPTADA' && v.pedido_id === ped.id)
+        const ventaActiva = (ventasRes.data || []).find(v => v.estado === 'aceptada' && v.pedido_id === ped.id)
         if (ventaActiva) {
           await api.anularVenta(ventaActiva.id)
           toast(`✅ Venta y pedido #${ped.numero_pedido} anulados`, 'success')
@@ -176,7 +176,7 @@ export default function PedidosAdmin() {
     try {
       let mpsConTipo = mpsSel.map(m => {
         const mp = metodosPago.find(x => x.nombre === m.mp) || {}
-        return { nombre: m.mp, tipo: mp.tipo || 'efectivo', monto: parseFloat(m.monto) || 0 }
+        return { metodo_nombre: m.mp, tipo: mp.tipo || 'efectivo', monto: parseFloat(m.monto) || 0 }
       })
       
       // Ajustar si el cliente dio billetes más grandes (vueltas) para no inflar la venta

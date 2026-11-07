@@ -62,9 +62,12 @@ export default function CajaAdmin() {
       // Se simplifica: no se inicializan métodos de pago para saldoInicial porque ahora es un campo único
 
       if (turnoActual) {
+        // Filtrar ventas por fecha de apertura del turno (ventas no tiene turno_id)
+        const fechaApertura = turnoActual.fecha_apertura
+          ? new Date(turnoActual.fecha_apertura).toISOString().slice(0,10)
+          : new Date().toISOString().slice(0,10)
         const [vRes, gRes] = await Promise.all([
-          // Obtenemos ventas filtradas desde backend que tengan este turno_id
-          api.getVentas({ turno_id: turnoActual.id }),
+          api.getVentas({ fecha_inicio: fechaApertura, fecha_fin: fechaApertura }),
           api.getGastos(turnoActual.id)
         ])
         setVentasTurno(vRes.data || [])
@@ -85,9 +88,7 @@ export default function CajaAdmin() {
   async function confirmarApertura(e) {
     e.preventDefault()
     try {
-      const data = {
-        saldos: [{ metodo_pago: 'Efectivo', monto: parseFloat(saldoInicial) || 0 }]
-      }
+      const data = { base_caja: parseFloat(saldoInicial) || 0 }
       await api.abrirCaja(data)
       toast('Caja abierta correctamente', 'success')
       setShowAbrir(false)
@@ -349,10 +350,10 @@ export default function CajaAdmin() {
                         {ventasTurno.map(v => (
                           <tr key={v.id}>
                             <td style={{ fontSize: 12, padding: 8, color: 'var(--text3)' }}>{new Date(v.created_at).toLocaleTimeString('es-CO')}</td>
-                            <td style={{ fontSize: 12, padding: 8 }}>{v.folio} {v.estado === 'ANULADA' ? '(A)' : ''}</td>
-                            <td style={{ fontSize: 12, padding: 8, textAlign: 'right', fontWeight: 600, color: v.estado === 'ANULADA' ? 'var(--text3)' : 'var(--vd)', textDecoration: v.estado === 'ANULADA' ? 'line-through' : 'none' }}>+ {fmt(v.total)}</td>
+                            <td style={{ fontSize: 12, padding: 8 }}>{v.folio} {v.estado === 'anulada' ? '(A)' : ''}</td>
+                            <td style={{ fontSize: 12, padding: 8, textAlign: 'right', fontWeight: 600, color: v.estado === 'anulada' ? 'var(--text3)' : 'var(--vd)', textDecoration: v.estado === 'anulada' ? 'line-through' : 'none' }}>+ {fmt(v.total)}</td>
                             <td style={{ fontSize: 12, padding: 8, textAlign: 'center' }}>
-                              {v.estado !== 'ANULADA' && (
+                              {v.estado !== 'anulada' && (
                                 <button className="btn btn-ghost btn-xs" style={{ padding: '4px 8px', color: 'var(--red)', fontSize: 11 }} onClick={() => anularVenta(v.id, v.folio)}>🚫 Anular</button>
                               )}
                             </td>
