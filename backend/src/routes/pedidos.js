@@ -34,7 +34,14 @@ router.post('/', async (req, res) => {
   const conn = await pool.getConnection()
   try {
     await conn.beginTransaction()
-    const { cliente_nombre, mesa_id, vendedor_nombre, tipo, domicilio, observaciones, items } = req.body
+    // Acepta tanto nombre_cliente como cliente_nombre, tanto tipo_pedido como tipo
+    const cliente_nombre  = req.body.cliente_nombre  || req.body.nombre_cliente
+    const mesa_id         = req.body.mesa_id
+    const vendedor_nombre = req.body.vendedor_nombre || req.body.vendedor_id
+    const tipo            = req.body.tipo            || req.body.tipo_pedido || 'para_llevar'
+    const domicilio       = req.body.domicilio       || 0
+    const observaciones   = req.body.observaciones
+    const items           = req.body.items
 
     // Número autoincremental transaccional
     await conn.query('UPDATE contadores SET valor = valor + 1 WHERE nombre = "pedido"')
@@ -42,21 +49,23 @@ router.post('/', async (req, res) => {
 
     const [result] = await conn.query(
       'INSERT INTO pedidos (numero, cliente_nombre, mesa_id, vendedor_nombre, tipo, domicilio, observaciones) VALUES (?,?,?,?,?,?,?)',
-      [numero, cliente_nombre, mesa_id || null, vendedor_nombre, tipo || 'para_llevar', domicilio || 0, observaciones]
+      [numero, cliente_nombre, mesa_id || null, vendedor_nombre, tipo, domicilio, observaciones]
     )
     const pedidoId = result.insertId
 
+    let total = 0
     if (Array.isArray(items)) {
       for (const item of items) {
         await conn.query(
           'INSERT INTO pedido_detalle (pedido_id, producto_id, nombre_producto, cantidad, precio_unitario, precio_costo) VALUES (?,?,?,?,?,?)',
           [pedidoId, item.producto_id || null, item.nombre_producto, item.cantidad, item.precio_unitario, item.precio_costo || 0]
         )
+        total += (item.cantidad * item.precio_unitario)
       }
     }
 
     await conn.commit()
-    res.status(201).json({ success: true, data: { id: pedidoId, numero } })
+    res.status(201).json({ success: true, data: { id: pedidoId, numero_pedido: numero, total } })
   } catch (err) {
     await conn.rollback()
     res.status(500).json({ success: false, error: { message: err.message } })
