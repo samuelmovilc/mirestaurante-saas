@@ -115,28 +115,41 @@ app.post('/saas-api/saas/tenants', saasAdminAuth, async (req, res) => {
       charset: 'utf8mb4'
     });
 
-    const schema = [
-      `CREATE TABLE IF NOT EXISTS configuracion (id INT PRIMARY KEY DEFAULT 1, nombre_negocio VARCHAR(150), nit VARCHAR(50), direccion VARCHAR(200), telefono VARCHAR(50), email VARCHAR(120), logo_url VARCHAR(500), moneda VARCHAR(10) DEFAULT 'COP', impuesto_porcentaje DECIMAL(5,2) DEFAULT 0, mensaje_factura TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`,
-      `CREATE TABLE IF NOT EXISTS usuarios (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(100), username VARCHAR(60) UNIQUE, password_hash VARCHAR(255), rol ENUM('admin','cajero','mesero') DEFAULT 'cajero', activo TINYINT(1) DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
-      `CREATE TABLE IF NOT EXISTS categorias (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(80) NOT NULL, color VARCHAR(20) DEFAULT '#6366f1', activo TINYINT(1) DEFAULT 1)`,
-      `CREATE TABLE IF NOT EXISTS productos (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(150) NOT NULL, descripcion TEXT, precio DECIMAL(12,2) NOT NULL DEFAULT 0, costo DECIMAL(12,2) DEFAULT 0, categoria_id INT, imagen_url VARCHAR(500), activo TINYINT(1) DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
-      `CREATE TABLE IF NOT EXISTS mesas (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(60) NOT NULL, zona VARCHAR(60), capacidad INT DEFAULT 4, activo TINYINT(1) DEFAULT 1)`,
-      `CREATE TABLE IF NOT EXISTS vendedores (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(100) NOT NULL, activo TINYINT(1) DEFAULT 1)`,
-      `CREATE TABLE IF NOT EXISTS metodos_pago (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(60) NOT NULL, activo TINYINT(1) DEFAULT 1)`,
-      `CREATE TABLE IF NOT EXISTS pedidos (id INT AUTO_INCREMENT PRIMARY KEY, mesa_id INT, vendedor_id INT, estado ENUM('abierto','pagado','anulado') DEFAULT 'abierto', subtotal DECIMAL(12,2) DEFAULT 0, impuesto DECIMAL(12,2) DEFAULT 0, total DECIMAL(12,2) DEFAULT 0, observaciones TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`,
-      `CREATE TABLE IF NOT EXISTS pedido_items (id INT AUTO_INCREMENT PRIMARY KEY, pedido_id INT NOT NULL, producto_id INT, nombre_producto VARCHAR(150), precio_unitario DECIMAL(12,2), cantidad INT DEFAULT 1, subtotal DECIMAL(12,2), notas TEXT)`,
-      `CREATE TABLE IF NOT EXISTS pagos (id INT AUTO_INCREMENT PRIMARY KEY, pedido_id INT NOT NULL, metodo_pago_id INT, monto DECIMAL(12,2), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
-      `CREATE TABLE IF NOT EXISTS clientes (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(150), documento VARCHAR(60), telefono VARCHAR(50), email VARCHAR(120), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
-      `CREATE TABLE IF NOT EXISTS cartera (id INT AUTO_INCREMENT PRIMARY KEY, cliente_id INT, pedido_id INT, monto_total DECIMAL(12,2), monto_pagado DECIMAL(12,2) DEFAULT 0, saldo DECIMAL(12,2), estado ENUM('pendiente','parcial','pagado') DEFAULT 'pendiente', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
-      `INSERT IGNORE INTO configuracion (id, nombre_negocio) VALUES (1, '${nombre_negocio.replace(/'/g,"''")}')`,
-      `INSERT IGNORE INTO usuarios (nombre, username, password_hash, rol) VALUES ('Administrador', '${usuario_login.replace(/'/g,"''")}', '${hash.replace(/'/g,"''")}', 'admin')`,
-      `INSERT IGNORE INTO metodos_pago (nombre) VALUES ('Efectivo'),('Tarjeta'),('Transferencia')`,
-      `INSERT IGNORE INTO categorias (nombre, color) VALUES ('General','#6366f1')`
-    ];
+    // Schema completo — idéntico al backend en Contabo (createTenantDB.js)
+    const schemaSQL = `
+      CREATE TABLE IF NOT EXISTS contadores (nombre VARCHAR(50) PRIMARY KEY, valor INT NOT NULL DEFAULT 0) ENGINE=InnoDB;
+      INSERT IGNORE INTO contadores (nombre, valor) VALUES ('pedido', 0), ('venta', 0);
+      CREATE TABLE IF NOT EXISTS configuracion (id INT PRIMARY KEY DEFAULT 1, nombre_negocio VARCHAR(100) NOT NULL DEFAULT 'Mi Restaurante', nit VARCHAR(50), telefono VARCHAR(30), ciudad VARCHAR(80), direccion VARCHAR(150), logo_url VARCHAR(500), imprimir_auto TINYINT(1) DEFAULT 0, mostrar_costos TINYINT(1) DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB;
+      CREATE TABLE IF NOT EXISTS usuarios (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(100) NOT NULL, email VARCHAR(100) NOT NULL UNIQUE, password_hash VARCHAR(255) NOT NULL, rol ENUM('admin','vendedor') DEFAULT 'vendedor', activo TINYINT(1) DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB;
+      CREATE TABLE IF NOT EXISTS categorias (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(80) NOT NULL, orden INT DEFAULT 0, activo TINYINT(1) DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB;
+      CREATE TABLE IF NOT EXISTS mesas (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(50) NOT NULL, activo TINYINT(1) DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB;
+      CREATE TABLE IF NOT EXISTS vendedores (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(100) NOT NULL, activo TINYINT(1) DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB;
+      CREATE TABLE IF NOT EXISTS metodos_pago (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(60) NOT NULL, tipo ENUM('efectivo','transferencia','tarjeta','credito','otro') DEFAULT 'otro', activo TINYINT(1) DEFAULT 1) ENGINE=InnoDB;
+      CREATE TABLE IF NOT EXISTS productos (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(120) NOT NULL, descripcion TEXT, categoria_id INT, precio_venta DECIMAL(12,2) NOT NULL DEFAULT 0, precio_costo DECIMAL(12,2) DEFAULT 0, imagen_url VARCHAR(500), activo TINYINT(1) DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON DELETE SET NULL) ENGINE=InnoDB;
+      CREATE TABLE IF NOT EXISTS pedidos (id INT AUTO_INCREMENT PRIMARY KEY, numero INT NOT NULL UNIQUE, cliente_nombre VARCHAR(100), mesa_id INT, vendedor_nombre VARCHAR(100), tipo ENUM('mesa','domicilio','para_llevar') DEFAULT 'para_llevar', estado ENUM('pendiente','en_preparacion','listo','entregado','cancelado') DEFAULT 'pendiente', domicilio DECIMAL(12,2) DEFAULT 0, observaciones TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, FOREIGN KEY (mesa_id) REFERENCES mesas(id) ON DELETE SET NULL) ENGINE=InnoDB;
+      CREATE TABLE IF NOT EXISTS pedido_detalle (id INT AUTO_INCREMENT PRIMARY KEY, pedido_id INT NOT NULL, producto_id INT, nombre_producto VARCHAR(120) NOT NULL, cantidad INT NOT NULL DEFAULT 1, precio_unitario DECIMAL(12,2) NOT NULL, precio_costo DECIMAL(12,2) DEFAULT 0, subtotal DECIMAL(12,2) GENERATED ALWAYS AS (cantidad * precio_unitario) STORED, FOREIGN KEY (pedido_id) REFERENCES pedidos(id) ON DELETE CASCADE, FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE SET NULL) ENGINE=InnoDB;
+      CREATE TABLE IF NOT EXISTS ventas (id INT AUTO_INCREMENT PRIMARY KEY, folio VARCHAR(30) NOT NULL UNIQUE, numero INT, pedido_id INT, cliente_nombre VARCHAR(100), vendedor_nombre VARCHAR(100), total DECIMAL(12,2) NOT NULL DEFAULT 0, utilidad_bruta DECIMAL(12,2) DEFAULT 0, estado ENUM('aceptada','anulada') DEFAULT 'aceptada', observaciones TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (pedido_id) REFERENCES pedidos(id) ON DELETE SET NULL) ENGINE=InnoDB;
+      CREATE TABLE IF NOT EXISTS venta_metodos_pago (id INT AUTO_INCREMENT PRIMARY KEY, venta_id INT NOT NULL, metodo_id INT, metodo_nombre VARCHAR(60), tipo VARCHAR(30), monto DECIMAL(12,2) NOT NULL DEFAULT 0, FOREIGN KEY (venta_id) REFERENCES ventas(id) ON DELETE CASCADE) ENGINE=InnoDB;
+      CREATE TABLE IF NOT EXISTS cartera (id INT AUTO_INCREMENT PRIMARY KEY, numero VARCHAR(20) NOT NULL UNIQUE, pedido_id INT, venta_id INT, trabajador_nombre VARCHAR(100) NOT NULL, total DECIMAL(12,2) NOT NULL DEFAULT 0, pagado DECIMAL(12,2) DEFAULT 0, pendiente DECIMAL(12,2) GENERATED ALWAYS AS (total - pagado) STORED, fecha_emision DATE, fecha_vencimiento DATE, estado ENUM('pendiente','pagado','parcial') DEFAULT 'pendiente', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB;
+      CREATE TABLE IF NOT EXISTS cartera_pagos (id INT AUTO_INCREMENT PRIMARY KEY, cartera_id INT NOT NULL, fecha_pago DATE NOT NULL, metodo_pago VARCHAR(60), referencia VARCHAR(100), monto DECIMAL(12,2) NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (cartera_id) REFERENCES cartera(id) ON DELETE CASCADE) ENGINE=InnoDB;
+      CREATE TABLE IF NOT EXISTS costeos (id INT AUTO_INCREMENT PRIMARY KEY, nombre VARCHAR(120) NOT NULL, porciones INT DEFAULT 1, precio_venta DECIMAL(12,2) DEFAULT 0, costo_total DECIMAL(12,2) DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB;
+      CREATE TABLE IF NOT EXISTS costeo_ingredientes (id INT AUTO_INCREMENT PRIMARY KEY, costeo_id INT NOT NULL, nombre VARCHAR(100) NOT NULL, cantidad DECIMAL(10,3) DEFAULT 1, unidad VARCHAR(20), costo_unitario DECIMAL(12,2) DEFAULT 0, FOREIGN KEY (costeo_id) REFERENCES costeos(id) ON DELETE CASCADE) ENGINE=InnoDB;
+      CREATE TABLE IF NOT EXISTS turnos_caja (id INT AUTO_INCREMENT PRIMARY KEY, base_caja DECIMAL(12,2) DEFAULT 0, estado ENUM('abierto','cerrado') DEFAULT 'abierto', fecha_apertura TIMESTAMP DEFAULT CURRENT_TIMESTAMP, fecha_cierre TIMESTAMP NULL, total_ventas DECIMAL(12,2) DEFAULT 0, total_gastos DECIMAL(12,2) DEFAULT 0, efectivo_esperado DECIMAL(12,2) DEFAULT 0) ENGINE=InnoDB;
+      CREATE TABLE IF NOT EXISTS caja_gastos (id INT AUTO_INCREMENT PRIMARY KEY, turno_id INT NOT NULL, descripcion VARCHAR(200) NOT NULL, monto DECIMAL(12,2) NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (turno_id) REFERENCES turnos_caja(id) ON DELETE CASCADE) ENGINE=InnoDB;
+    `;
 
-    for (const sql of schema) {
+    const statements = schemaSQL.split(';').map(s => s.trim()).filter(s => s.length > 0);
+    for (const sql of statements) {
       await tenantPool.query(sql);
     }
+
+    // Seeds iniciales
+    await tenantPool.query(`INSERT IGNORE INTO configuracion (id, nombre_negocio) VALUES (1, ?)`, [nombre_negocio]);
+    await tenantPool.query(`INSERT IGNORE INTO usuarios (nombre, email, password_hash, rol) VALUES (?, ?, ?, 'admin')`,
+      [usuario_login, `${usuario_login}@${dbName}.local`, hash]);
+    await tenantPool.query(`INSERT IGNORE INTO metodos_pago (nombre, tipo) VALUES ('Efectivo','efectivo'),('Transferencia','transferencia'),('Tarjeta','tarjeta')`);
+    await tenantPool.query(`INSERT IGNORE INTO categorias (nombre, orden) VALUES ('Combos',1),('Bebidas',2),('Acompañamientos',3)`);
+
     await tenantPool.end();
 
     res.status(201).json({ success: true, data: { id: result.insertId, slug: slugClean, db_name: dbName } });
