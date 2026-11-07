@@ -79,14 +79,15 @@ async function createTenantDB(dbName, nombreNegocio, usuarioLogin, passwordHash)
       ) ENGINE=InnoDB;
 
       CREATE TABLE IF NOT EXISTS productos (
-        id            INT AUTO_INCREMENT PRIMARY KEY,
-        nombre        VARCHAR(120) NOT NULL,
-        descripcion   TEXT,
-        categoria_id  INT,
-        precio_venta  DECIMAL(12,2) NOT NULL DEFAULT 0,
-        precio_costo  DECIMAL(12,2) DEFAULT 0,
-        imagen_url    VARCHAR(500),
-        activo        TINYINT(1) DEFAULT 1,
+        id                INT AUTO_INCREMENT PRIMARY KEY,
+        nombre            VARCHAR(120) NOT NULL,
+        descripcion       TEXT,
+        categoria_id      INT,
+        precio_venta      DECIMAL(12,2) NOT NULL DEFAULT 0,
+        precio_costo      DECIMAL(12,2) DEFAULT 0,
+        imagen_url        VARCHAR(500),
+        visible_formulario TINYINT(1) DEFAULT 1,
+        activo            TINYINT(1) DEFAULT 1,
         created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON DELETE SET NULL

@@ -18,10 +18,10 @@ router.get('/', async (req, res) => {
 
 router.post('/', authMiddleware, soloAdmin, async (req, res) => {
   try {
-    const { nombre, descripcion, categoria_id, precio_venta, precio_costo, imagen_url } = req.body
+    const { nombre, descripcion, categoria_id, precio_venta, precio_costo, imagen_url, visible_formulario } = req.body
     const [r] = await req.tenantPool.query(
-      'INSERT INTO productos (nombre, descripcion, categoria_id, precio_venta, precio_costo, imagen_url) VALUES (?,?,?,?,?,?)',
-      [nombre, descripcion, categoria_id, precio_venta, precio_costo || 0, imagen_url]
+      'INSERT INTO productos (nombre, descripcion, categoria_id, precio_venta, precio_costo, imagen_url, visible_formulario) VALUES (?,?,?,?,?,?,?)',
+      [nombre, descripcion, categoria_id, precio_venta, precio_costo || 0, imagen_url, visible_formulario ?? 1]
     )
     const [rows] = await req.tenantPool.query('SELECT * FROM productos WHERE id = ?', [r.insertId])
     res.status(201).json({ success: true, data: rows[0] })
@@ -30,10 +30,10 @@ router.post('/', authMiddleware, soloAdmin, async (req, res) => {
 
 router.put('/:id', authMiddleware, soloAdmin, async (req, res) => {
   try {
-    const { nombre, descripcion, categoria_id, precio_venta, precio_costo, imagen_url, activo } = req.body
+    const { nombre, descripcion, categoria_id, precio_venta, precio_costo, imagen_url, visible_formulario, activo } = req.body
     await req.tenantPool.query(
-      'UPDATE productos SET nombre=?, descripcion=?, categoria_id=?, precio_venta=?, precio_costo=?, imagen_url=?, activo=? WHERE id=?',
-      [nombre, descripcion, categoria_id, precio_venta, precio_costo || 0, imagen_url, activo ?? 1, req.params.id]
+      'UPDATE productos SET nombre=?, descripcion=?, categoria_id=?, precio_venta=?, precio_costo=?, imagen_url=?, visible_formulario=?, activo=? WHERE id=?',
+      [nombre, descripcion, categoria_id, precio_venta, precio_costo || 0, imagen_url, visible_formulario ?? 1, activo ?? 1, req.params.id]
     )
     res.json({ success: true })
   } catch (err) { res.status(500).json({ success: false, error: { message: err.message } }) }
