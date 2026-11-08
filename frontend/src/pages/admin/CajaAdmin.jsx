@@ -148,7 +148,13 @@ export default function CajaAdmin() {
       return toast('Por favor completa todos los campos requeridos', 'error')
     }
     try {
-      await api.crearGasto({ ...gastoForm, turno_id: turno.id, monto: parseFloat(gastoForm.monto) })
+      await api.crearGasto({
+        turno_id: turno.id,
+        descripcion: `${gastoForm.categoria}${gastoForm.observacion ? ' - ' + gastoForm.observacion : ''}`,
+        monto: parseFloat(gastoForm.monto),
+        categoria: gastoForm.categoria,
+        metodo_pago: gastoForm.metodo_pago,
+      })
       toast('Gasto registrado', 'success')
       setShowGasto(false)
       setGastoForm({ categoria: '', observacion: '', metodo_pago: '', monto: '' })
@@ -335,7 +341,7 @@ export default function CajaAdmin() {
 
                 {/* LISTA VENTAS (RESUMEN) */}
                 <div>
-                  <h4 style={{ marginBottom: 12 }}>Ventas Registradas ({ventasTurno.filter(v => v.estado !== 'anulada').length})</h4>
+                  <h4 style={{ marginBottom: 12 }}>Ventas Registradas ({ventasTurno.filter(v => v.estado !== 'anulada').length} activas{ventasTurno.some(v => v.estado === 'anulada') ? `, ${ventasTurno.filter(v => v.estado === 'anulada').length} anulada(s)` : ''})</h4>
                   <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', maxHeight: 400, overflowY: 'auto' }}>
                     <table style={{ margin: 0 }}>
                       <thead style={{ background: 'var(--bg-page)' }}>
@@ -347,13 +353,15 @@ export default function CajaAdmin() {
                         </tr>
                       </thead>
                       <tbody>
-                        {ventasTurno.filter(v => v.estado !== 'anulada').map(v => (
-                          <tr key={v.id}>
+                        {ventasTurno.map(v => (
+                          <tr key={v.id} style={{ opacity: v.estado === 'anulada' ? 0.5 : 1 }}>
                             <td style={{ fontSize: 12, padding: 8, color: 'var(--text3)' }}>{new Date(v.created_at).toLocaleTimeString('es-CO')}</td>
-                            <td style={{ fontSize: 12, padding: 8 }}>{v.folio}</td>
-                            <td style={{ fontSize: 12, padding: 8, textAlign: 'right', fontWeight: 600, color: 'var(--vd)' }}>+ {fmt(v.total)}</td>
+                            <td style={{ fontSize: 12, padding: 8 }}>{v.folio} {v.estado === 'anulada' ? <span style={{ color: 'var(--red)', fontSize: 10 }}>(ANULADA)</span> : ''}</td>
+                            <td style={{ fontSize: 12, padding: 8, textAlign: 'right', fontWeight: 600, color: v.estado === 'anulada' ? 'var(--text3)' : 'var(--vd)', textDecoration: v.estado === 'anulada' ? 'line-through' : 'none' }}>+ {fmt(v.total)}</td>
                             <td style={{ fontSize: 12, padding: 8, textAlign: 'center' }}>
-                              <button className="btn btn-ghost btn-xs" style={{ padding: '4px 8px', color: 'var(--red)', fontSize: 11 }} onClick={() => anularVenta(v.id, v.folio)}>🚫 Anular</button>
+                              {v.estado !== 'anulada' && (
+                                <button className="btn btn-ghost btn-xs" style={{ padding: '4px 8px', color: 'var(--red)', fontSize: 11 }} onClick={() => anularVenta(v.id, v.folio)}>🚫 Anular</button>
+                              )}
                             </td>
                           </tr>
                         ))}
