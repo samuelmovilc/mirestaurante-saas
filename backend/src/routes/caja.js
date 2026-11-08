@@ -67,9 +67,24 @@ router.get('/gastos/:turnoId', authMiddleware, async (req, res) => {
 
 router.post('/gastos', authMiddleware, soloAdmin, async (req, res) => {
   try {
-    const { turno_id, descripcion, monto } = req.body
-    const [r] = await req.tenantPool.query('INSERT INTO caja_gastos (turno_id, descripcion, monto) VALUES (?,?,?)', [turno_id, descripcion, monto])
-    res.status(201).json({ success: true, data: { id: r.insertId } })
+    const { turno_id, descripcion, monto, categoria, metodo_pago, observacion } = req.body
+    // Construir descripcion si no viene (compatibilidad)
+    const desc = descripcion || `${categoria || ''}${observacion ? ' - ' + observacion : ''}` || 'Gasto'
+    // Intentar insertar con columnas opcionales, fallback a solo las básicas
+    try {
+      const [r] = await req.tenantPool.query(
+        'INSERT INTO caja_gastos (turno_id, descripcion, monto, categoria, metodo_pago) VALUES (?,?,?,?,?)',
+        [turno_id, desc, parseFloat(monto) || 0, categoria || '', metodo_pago || '']
+      )
+      return res.status(201).json({ success: true, data: { id: r.insertId } })
+    } catch (e2) {
+      // Si falla (columnas no existen), usar solo las básicas
+      const [r] = await req.tenantPool.query(
+        'INSERT INTO caja_gastos (turno_id, descripcion, monto) VALUES (?,?,?)',
+        [turno_id, desc, parseFloat(monto) || 0]
+      )
+      return res.status(201).json({ success: true, data: { id: r.insertId } })
+    }
   } catch (err) { res.status(500).json({ success: false, error: { message: err.message } }) }
 })
 
