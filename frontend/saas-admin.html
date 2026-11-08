@@ -381,6 +381,12 @@
   function openWpp(tel, nombre, usuario, slug) {
     const urlPedidos = `https://mirestaurante-saas-frontend.vercel.app/?tenant=${slug}`
     const urlAdmin   = `https://mirestaurante-saas-frontend.vercel.app/login?tenant=${slug}`
+    let pass = ''
+    try { pass = localStorage.getItem('pw_' + slug) || '' } catch {}
+    if (!pass) {
+      pass = (prompt(`Contraseña de ${nombre} para incluirla en el mensaje:`) || '').trim()
+      if (pass) { try { localStorage.setItem('pw_' + slug, pass) } catch {} }
+    }
     const msg =
 `🍽️ ¡Bienvenido a *MiRestaurante*!
 
@@ -389,6 +395,7 @@ Hola, nos complace informarte que tu sistema de gestión *${nombre}* ya está li
 Aquí están tus datos de acceso:
 
 👤 *Usuario:* ${usuario}
+🔑 *Contraseña:* ${pass || '(la que registraste)'}
 🌐 *Panel Administrativo:* ${urlAdmin}
 🛒 *Formulario de Pedidos:* ${urlPedidos}
 
@@ -483,6 +490,7 @@ Si tienes alguna duda, con gusto te ayudamos. ¡Mucho éxito! 🚀`
       })
       const d = await r.json()
       if (!d.success) throw new Error(d.error?.message || 'Error')
+      if (body.password) { try { localStorage.setItem('pw_' + body.slug, body.password) } catch {} }
       toast(editId ? 'Cliente actualizado ✓' : 'Cliente creado y BD lista ✓', 'ok')
       closeModal()
       loadTenants()
