@@ -5,11 +5,16 @@ const router = express.Router()
 async function enriquecerTurno(turno, pool) {
   if (!turno) return null
   // Calcular ingresos reales desde ventas del turno
-  const [[{ ingresos }]] = await pool.query(
-    `SELECT COALESCE(SUM(total),0) AS ingresos FROM ventas
-     WHERE estado='aceptada' AND created_at >= ? AND (? IS NULL OR created_at <= ?)`,
-    [turno.fecha_apertura, turno.fecha_cierre, turno.fecha_cierre]
-  )
+  // Si el turno está abierto (sin fecha_cierre), traer todas las ventas desde la apertura
+  let ingresosQuery, ingresosParams
+  if (turno.fecha_cierre) {
+    ingresosQuery = `SELECT COALESCE(SUM(total),0) AS ingresos FROM ventas WHERE estado='aceptada' AND created_at >= ? AND created_at <= ?`
+    ingresosParams = [turno.fecha_apertura, turno.fecha_cierre]
+  } else {
+    ingresosQuery = `SELECT COALESCE(SUM(total),0) AS ingresos FROM ventas WHERE estado='aceptada' AND created_at >= ?`
+    ingresosParams = [turno.fecha_apertura]
+  }
+  const [[{ ingresos }]] = await pool.query(ingresosQuery, ingresosParams)
   // Calcular gastos reales desde caja_gastos
   const [[{ gastos }]] = await pool.query(
     `SELECT COALESCE(SUM(monto),0) AS gastos FROM caja_gastos WHERE turno_id = ?`,
