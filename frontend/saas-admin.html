@@ -353,7 +353,7 @@
         <td><span class="badge ${st.cls}"><span class="dot"></span>${st.label}</span></td>
         <td>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
-            ${t.telefono ? `<button class="btn-sm btn-wpp" onclick="openWpp('${t.telefono}','${t.nombre_negocio}','${t.usuario_login}','${t.slug}')">W</button>` : ''}
+            <button class="btn-sm btn-wpp" onclick="openWpp('${t.telefono||''}','${t.nombre_negocio}','${t.usuario_login}','${t.slug}')">W</button>
             <button class="btn-sm btn-edit" onclick="openEdit(${t.id})">✏ Editar</button>
             <button class="btn-sm btn-toggle" onclick="toggleTenant(${t.id})">${toggleLabel}</button>
           </div>
@@ -379,7 +379,8 @@
 
   // ── WhatsApp ──────────────────────────────────────────────
   function openWpp(tel, nombre, usuario, slug) {
-    const url = `https://mirestaurante-saas-frontend.vercel.app/?tenant=${slug}`
+    const urlPedidos = `https://mirestaurante-saas-frontend.vercel.app/?tenant=${slug}`
+    const urlAdmin   = `https://mirestaurante-saas-frontend.vercel.app/login?tenant=${slug}`
     const msg =
 `🍽️ ¡Bienvenido a *MiRestaurante*!
 
@@ -388,14 +389,14 @@ Hola, nos complace informarte que tu sistema de gestión *${nombre}* ya está li
 Aquí están tus datos de acceso:
 
 👤 *Usuario:* ${usuario}
-🔑 *Contraseña:* (la que registraste al crear tu cuenta)
-🌐 *Enlace de acceso:* ${url}
+🌐 *Panel Administrativo:* ${urlAdmin}
+🛒 *Formulario de Pedidos:* ${urlPedidos}
 
 Desde tu panel podrás gestionar pedidos, productos, caja, costeo de recetas y más.
 
 Si tienes alguna duda, con gusto te ayudamos. ¡Mucho éxito! 🚀`
     navigator.clipboard.writeText(msg).then(() => {
-      alert('✅ Mensaje copiado al portapapeles. Pégalo en WhatsApp.')
+      toast('✅ Mensaje copiado — pégalo en WhatsApp', 'ok')
     }).catch(() => {
       prompt('Copia este mensaje:', msg)
     })
