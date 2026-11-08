@@ -54,13 +54,14 @@ app.post('/saas-api/saas/login', async (req, res) => {
     const { password } = req.body;
     if (!password) return res.status(400).json({ success: false, error: { code: 'MISSING_PASSWORD', message: 'Password requerido' } });
 
-    const hash = process.env.SAAS_ADMIN_HASH;
-    if (!hash) return res.status(500).json({ success: false, error: { code: 'NO_HASH', message: 'SAAS_ADMIN_HASH no configurado' } });
+    // Hash hardcodeado como fallback si env var falla por caracteres especiales ($)
+    const HASH_FALLBACK = '$2a$10$3nzYvXb.Qz.zDFPXjuk6i.mVPjGFsRugJmKs1T1ZJLNXJzqwIxOWq';
+    const hash = process.env.SAAS_ADMIN_HASH || HASH_FALLBACK;
 
     const ok = await bcrypt.compare(password, hash);
     if (!ok) return res.status(401).json({ success: false, error: { code: 'WRONG_PASSWORD', message: 'Password incorrecto' } });
 
-    const token = jwt.sign({ role: 'saas_admin' }, process.env.SAAS_ADMIN_SECRET || 'saas_secret', { expiresIn: '12h' });
+    const token = jwt.sign({ role: 'saas_admin' }, SAAS_ADMIN_SECRET, { expiresIn: '12h' });
     res.json({ success: true, data: { token } });
   } catch (err) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
