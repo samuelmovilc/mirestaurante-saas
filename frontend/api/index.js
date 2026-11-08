@@ -187,8 +187,40 @@ app.put('/saas-api/saas/tenants/:id', saasAdminAuth, async (req, res) => {
 
     if (!sets.length) return res.status(400).json({ success: false, error: { code: 'NOTHING_TO_UPDATE' } });
 
+    // Datos actuales del tenant (para sincronizar el usuario admin dentro de su BD)
+    const [[actual]] = await getPool().query('SELECT db_name, usuario_login FROM tenants WHERE id = ?', [req.params.id]);
+    if (!actual) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+
     values.push(req.params.id);
     await getPool().query(`UPDATE tenants SET ${sets.join(', ')} WHERE id = ?`, values);
+
+    // El login del restaurante valida contra `usuarios` en SU base de datos, no contra `tenants`.
+    // Si cambió la contraseña (o el usuario), se sincroniza ahí para que sea la que realmente abre su programa.
+    if (password || (usuario_login && usuario_login !== actual.usuario_login)) {
+      const tenantPool = mysql.createPool({
+        host: process.env.DB_MASTER_HOST || '89.117.56.39',
+        port: parseInt(process.env.DB_MASTER_PORT) || 3308,
+        database: actual.db_name,
+        user: process.env.DB_MASTER_USER || 'saas_user',
+        password: process.env.DB_MASTER_PASSWORD || '',
+        connectionLimit: 1,
+        charset: 'utf8mb4'
+      });
+      try {
+        const nuevoUsuario = usuario_login || actual.usuario_login;
+        const uSets = ['nombre = ?'], uVals = [nuevoUsuario];
+        if (password) { uSets.push('password_hash = ?'); uVals.push(await bcrypt.hash(password, 10)); }
+        const emailViejo = `${actual.usuario_login}@${actual.db_name}.local`;
+        let [r] = await tenantPool.query(`UPDATE usuarios SET ${uSets.join(', ')} WHERE email = ? OR nombre = ?`, [...uVals, emailViejo, actual.usuario_login]);
+        if (!r.affectedRows) {
+          // Respaldo: el primer administrador de esa base
+          [r] = await tenantPool.query(`UPDATE usuarios SET ${uSets.join(', ')} WHERE rol = 'admin' ORDER BY id LIMIT 1`, uVals);
+        }
+        if (!r.affectedRows) throw new Error('No se encontró el usuario administrador en la base del restaurante');
+      } finally {
+        await tenantPool.end();
+      }
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
