@@ -353,7 +353,8 @@
         <td><span class="badge ${st.cls}"><span class="dot"></span>${st.label}</span></td>
         <td>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button class="btn-sm btn-wpp" onclick="openWpp('${t.telefono||''}','${t.nombre_negocio}','${t.usuario_login}','${t.slug}')">W</button>
+            <input id="pw-${t.id}" type="text" placeholder="Contraseña" value="${(()=>{try{return (localStorage.getItem('pw_'+t.slug)||'').replace(/"/g,'&quot;')}catch{return ''}})()}" style="width:120px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12px;outline:none" />
+            <button class="btn-sm btn-wpp" onclick="openWpp(${t.id},'${t.nombre_negocio}','${t.usuario_login}','${t.slug}')">📋 W</button>
             <button class="btn-sm btn-edit" onclick="openEdit(${t.id})">✏ Editar</button>
             <button class="btn-sm btn-toggle" onclick="toggleTenant(${t.id})">${toggleLabel}</button>
           </div>
@@ -378,35 +379,37 @@
   }
 
   // ── WhatsApp ──────────────────────────────────────────────
-  function openWpp(tel, nombre, usuario, slug) {
-    const urlPedidos = `https://mirestaurante-saas-frontend.vercel.app/?tenant=${slug}`
-    const urlAdmin   = `https://mirestaurante-saas-frontend.vercel.app/login?tenant=${slug}`
-    let pass = ''
-    try { pass = localStorage.getItem('pw_' + slug) || '' } catch {}
-    if (!pass) {
-      pass = (prompt(`Contraseña de ${nombre} para incluirla en el mensaje:`) || '').trim()
-      if (pass) { try { localStorage.setItem('pw_' + slug, pass) } catch {} }
-    }
-    const msg =
-`🍽️ ¡Bienvenido a *MiRestaurante*!
+  function wppMsg(nombre, usuario, slug, pass) {
+    const base = 'https://mirestaurante-saas-frontend.vercel.app'
+    return `🍽️ ¡Bienvenido a *MiRestaurante*!
 
 Hola, nos complace informarte que tu sistema de gestión *${nombre}* ya está listo y activo. 🎉
 
 Aquí están tus datos de acceso:
 
 👤 *Usuario:* ${usuario}
-🔑 *Contraseña:* ${pass || '(la que registraste)'}
-🌐 *Panel Administrativo:* ${urlAdmin}
-🛒 *Formulario de Pedidos:* ${urlPedidos}
+🔑 *Contraseña:* ${pass}
+🌐 *Panel Administrativo:* ${base}/login?tenant=${slug}
+🛒 *Formulario de Pedidos:* ${base}/?tenant=${slug}
 
 Desde tu panel podrás gestionar pedidos, productos, caja, costeo de recetas y más.
 
 Si tienes alguna duda, con gusto te ayudamos. ¡Mucho éxito! 🚀`
-    navigator.clipboard.writeText(msg).then(() => {
-      toast('✅ Mensaje copiado — pégalo en WhatsApp', 'ok')
-    }).catch(() => {
-      prompt('Copia este mensaje:', msg)
-    })
+  }
+  function openWpp(id, nombre, usuario, slug) {
+    const inp  = document.getElementById('pw-' + id)
+    const pass = inp.value.trim()
+    if (!pass) { inp.focus(); inp.style.borderColor = '#ef4444'; toast('Escribe la contraseña del cliente en el campo', 'err'); return }
+    inp.style.borderColor = ''
+    try { localStorage.setItem('pw_' + slug, pass) } catch {}
+    const msg = wppMsg(nombre, usuario, slug, pass)
+    const ok = () => toast('✅ Mensaje copiado — pégalo en WhatsApp', 'ok')
+    const fallback = () => {
+      const ta = document.createElement('textarea'); ta.value = msg
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); ok()
+    }
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(msg).then(ok).catch(fallback)
+    else fallback()
   }
 
   // ── Modal crear ───────────────────────────────────────────
