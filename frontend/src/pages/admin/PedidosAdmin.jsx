@@ -209,8 +209,8 @@ export default function PedidosAdmin() {
         total,
       })
       
-      // Auto-generar factura PDF
-      downloadFacturaPDF(selPedido, mpsConTipo, total, cambio, config)
+      // Auto-generar factura PDF (inyectar itemsEdit como items para que el PDF los muestre)
+      downloadFacturaPDF({ ...selPedido, items: itemsEdit }, mpsConTipo, total, cambio, config)
       // NOTA: El backend (ventas.js) ya actualiza el estado del pedido a 'entregado'
       // automáticamente al crear la venta. NO hay que llamar cambiarEstado aquí.
 
@@ -221,8 +221,14 @@ export default function PedidosAdmin() {
     finally { setLiquidando(false) }
   }
 
-  function imprimirFactura(p) {
-    downloadFacturaPDF(p, null, null, null, config)
+  async function imprimirFactura(p) {
+    try {
+      const res = await api.getPedido(p.id)
+      const detalle = res.data?.detalle || []
+      downloadFacturaPDF({ ...p, items: detalle }, null, p.total, null, config)
+    } catch (e) {
+      toast('Error cargando detalle para factura', 'error')
+    }
   }
 
   function generarComandas() {

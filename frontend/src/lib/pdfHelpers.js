@@ -93,7 +93,7 @@ export async function downloadFacturaPDF(p, mps, total, cambio, config) {
   if (mps && mps.length) {
     doc.setFont("helvetica", "normal")
     mps.forEach(m => {
-      doc.text(`PAGO (${m.nombre}): $${parseFloat(m.monto||0).toLocaleString('es-CO')}`, 5, currentY)
+      doc.text(`PAGO (${m.metodo_nombre || m.nombre || ''}): $${parseFloat(m.monto||0).toLocaleString('es-CO')}`, 5, currentY)
       currentY += 5
     })
     if (cambio > 0) {
