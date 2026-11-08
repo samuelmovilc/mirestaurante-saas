@@ -335,7 +335,7 @@ export default function CajaAdmin() {
 
                 {/* LISTA VENTAS (RESUMEN) */}
                 <div>
-                  <h4 style={{ marginBottom: 12 }}>Ventas Registradas ({ventasTurno.length})</h4>
+                  <h4 style={{ marginBottom: 12 }}>Ventas Registradas ({ventasTurno.filter(v => v.estado !== 'anulada').length})</h4>
                   <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', maxHeight: 400, overflowY: 'auto' }}>
                     <table style={{ margin: 0 }}>
                       <thead style={{ background: 'var(--bg-page)' }}>
@@ -347,15 +347,13 @@ export default function CajaAdmin() {
                         </tr>
                       </thead>
                       <tbody>
-                        {ventasTurno.map(v => (
+                        {ventasTurno.filter(v => v.estado !== 'anulada').map(v => (
                           <tr key={v.id}>
                             <td style={{ fontSize: 12, padding: 8, color: 'var(--text3)' }}>{new Date(v.created_at).toLocaleTimeString('es-CO')}</td>
-                            <td style={{ fontSize: 12, padding: 8 }}>{v.folio} {v.estado === 'anulada' ? '(A)' : ''}</td>
-                            <td style={{ fontSize: 12, padding: 8, textAlign: 'right', fontWeight: 600, color: v.estado === 'anulada' ? 'var(--text3)' : 'var(--vd)', textDecoration: v.estado === 'anulada' ? 'line-through' : 'none' }}>+ {fmt(v.total)}</td>
+                            <td style={{ fontSize: 12, padding: 8 }}>{v.folio}</td>
+                            <td style={{ fontSize: 12, padding: 8, textAlign: 'right', fontWeight: 600, color: 'var(--vd)' }}>+ {fmt(v.total)}</td>
                             <td style={{ fontSize: 12, padding: 8, textAlign: 'center' }}>
-                              {v.estado !== 'anulada' && (
-                                <button className="btn btn-ghost btn-xs" style={{ padding: '4px 8px', color: 'var(--red)', fontSize: 11 }} onClick={() => anularVenta(v.id, v.folio)}>🚫 Anular</button>
-                              )}
+                              <button className="btn btn-ghost btn-xs" style={{ padding: '4px 8px', color: 'var(--red)', fontSize: 11 }} onClick={() => anularVenta(v.id, v.folio)}>🚫 Anular</button>
                             </td>
                           </tr>
                         ))}
