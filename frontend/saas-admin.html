@@ -353,8 +353,7 @@
         <td><span class="badge ${st.cls}"><span class="dot"></span>${st.label}</span></td>
         <td>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <input id="pw-${t.id}" type="text" placeholder="Contraseña" value="${(()=>{try{return (localStorage.getItem('pw_'+t.slug)||'').replace(/"/g,'&quot;')}catch{return ''}})()}" style="width:120px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12px;outline:none" />
-            <button class="btn-sm btn-wpp" onclick="openWpp(${t.id},'${t.nombre_negocio}','${t.usuario_login}','${t.slug}')">📋 W</button>
+            <button class="btn-sm btn-wpp" onclick="openWpp('${t.nombre_negocio}','${t.usuario_login}','${t.slug}')">📋 W</button>
             <button class="btn-sm btn-edit" onclick="openEdit(${t.id})">✏ Editar</button>
             <button class="btn-sm btn-toggle" onclick="toggleTenant(${t.id})">${toggleLabel}</button>
           </div>
@@ -396,12 +395,10 @@ Desde tu panel podrás gestionar pedidos, productos, caja, costeo de recetas y m
 
 Si tienes alguna duda, con gusto te ayudamos. ¡Mucho éxito! 🚀`
   }
-  function openWpp(id, nombre, usuario, slug) {
-    const inp  = document.getElementById('pw-' + id)
-    const pass = inp.value.trim()
-    if (!pass) { inp.focus(); inp.style.borderColor = '#ef4444'; toast('Escribe la contraseña del cliente en el campo', 'err'); return }
-    inp.style.borderColor = ''
-    try { localStorage.setItem('pw_' + slug, pass) } catch {}
+  function openWpp(nombre, usuario, slug) {
+    let pass = ''
+    try { pass = localStorage.getItem('pw_' + slug) || '' } catch {}
+    if (!pass) { toast('Primero pon la contraseña en ✏ Editar (campo Password) y guarda', 'err'); return }
     const msg = wppMsg(nombre, usuario, slug, pass)
     const ok = () => toast('✅ Mensaje copiado — pégalo en WhatsApp', 'ok')
     const fallback = () => {
