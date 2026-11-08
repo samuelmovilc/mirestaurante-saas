@@ -231,10 +231,19 @@ export default function PedidosAdmin() {
     }
   }
 
-  function generarComandas() {
+  async function generarComandas() {
     const sel = pedidos.filter(p => selectedIds.includes(p.id))
     if (!sel.length) return toast('Por favor selecciona al menos un pedido para imprimir la comanda', 'error')
-    downloadComandasPDF(sel, config)
+    try {
+      // Cargar detalle real de cada pedido para tener los productos
+      const conDetalle = await Promise.all(sel.map(async p => {
+        const res = await api.getPedido(p.id)
+        return { ...p, items: res.data?.detalle || [] }
+      }))
+      downloadComandasPDF(conDetalle, config)
+    } catch (e) {
+      toast('Error cargando detalle de pedidos', 'error')
+    }
   }
 
   const txtLow = fTexto.toLowerCase().trim()
