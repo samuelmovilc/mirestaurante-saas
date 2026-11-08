@@ -5,6 +5,19 @@ function getToken() {
   return localStorage.getItem('token')
 }
 
+// Al cargar la app: si la URL trae un restaurante distinto al guardado, se descarta la sesión
+// del restaurante anterior (si no, el token/tenant viejos se mezclan con el nuevo).
+;(function syncTenantFromUrl() {
+  try {
+    const fromUrl = new URLSearchParams(window.location.search).get('tenant')
+    if (fromUrl && fromUrl !== localStorage.getItem('tenant')) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('usuario')
+      localStorage.setItem('tenant', fromUrl)
+    }
+  } catch {}
+})()
+
 // Lee el tenant del query param ?tenant=xxx o de localStorage
 function getTenant() {
   const params = new URLSearchParams(window.location.search)
@@ -30,7 +43,7 @@ async function request(path, options = {}) {
   if (res.status === 401 && !path.includes('/login')) {
     localStorage.removeItem('token')
     localStorage.removeItem('usuario')
-    window.location.href = '/login'
+    window.location.href = tenant ? `/login?tenant=${encodeURIComponent(tenant)}` : '/login'
     throw new Error('Sesión expirada')
   }
 

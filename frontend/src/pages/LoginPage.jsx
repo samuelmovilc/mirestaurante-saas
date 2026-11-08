@@ -31,6 +31,7 @@ export default function LoginPage() {
           <div className="login-logo-icon">🍽️</div>
           <h1>MiRestaurante</h1>
           <p>Panel de administración</p>
+          {(() => { try { const t = localStorage.getItem('tenant'); return t ? <p style={{ marginTop: 6, fontSize: 13, opacity: 0.8 }}>Restaurante: <b>{t}</b></p> : null } catch { return null } })()}
         </div>
 
         <div className="login-card">
