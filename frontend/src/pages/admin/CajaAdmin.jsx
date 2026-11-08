@@ -148,7 +148,7 @@ export default function CajaAdmin() {
       return toast('Por favor completa todos los campos requeridos', 'error')
     }
     try {
-      await api.crearGasto({ ...gastoForm, monto: parseFloat(gastoForm.monto) })
+      await api.crearGasto({ ...gastoForm, turno_id: turno.id, monto: parseFloat(gastoForm.monto) })
       toast('Gasto registrado', 'success')
       setShowGasto(false)
       setGastoForm({ categoria: '', observacion: '', metodo_pago: '', monto: '' })
