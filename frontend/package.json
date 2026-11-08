@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && cp saas-admin.html dist/saas-admin.html",
     "preview": "vite preview"
   },
   "dependencies": {
