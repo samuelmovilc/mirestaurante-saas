@@ -15,17 +15,23 @@ app.use(cors({
   allowedHeaders: ['Content-Type','Authorization','X-Tenant']
 }));
 
-// ── Master DB Pool ──
-const masterPool = mysql.createPool({
-  host:               process.env.DB_MASTER_HOST     || '89.117.56.39',
-  port:               parseInt(process.env.DB_MASTER_PORT) || 3308,
-  database:           process.env.DB_MASTER_NAME     || 'mirestaurante_saas',
-  user:               process.env.DB_MASTER_USER     || 'saas_user',
-  password:           process.env.DB_MASTER_PASSWORD || '',
-  waitForConnections: true,
-  connectionLimit:    5,
-  charset:            'utf8mb4'
-});
+// ── Master DB Pool (lazy) ──
+let masterPool = null;
+function getPool() {
+  if (!masterPool) {
+    masterPool = mysql.createPool({
+      host:               process.env.DB_MASTER_HOST     || '89.117.56.39',
+      port:               parseInt(process.env.DB_MASTER_PORT) || 3308,
+      database:           process.env.DB_MASTER_NAME     || 'mirestaurante_saas',
+      user:               process.env.DB_MASTER_USER     || 'saas_user',
+      password:           process.env.DB_MASTER_PASSWORD || '',
+      waitForConnections: true,
+      connectionLimit:    5,
+      charset:            'utf8mb4'
+    });
+  }
+  return masterPool;
+}
 
 // ── SaaS Admin Auth Middleware ──
 const SAAS_ADMIN_SECRET = process.env.SAAS_ADMIN_SECRET || 'saas_admin_secret_2026';
@@ -71,7 +77,7 @@ app.post('/saas-api/saas/login', async (req, res) => {
 // ── GET /api/saas/tenants ──
 app.get('/saas-api/saas/tenants', saasAdminAuth, async (req, res) => {
   try {
-    const [rows] = await masterPool.query(
+    const [rows] = await getPool().query(
       'SELECT id, nombre_negocio, slug, db_name, usuario_login, correo, telefono, fecha_inicio_licencia, fecha_fin_licencia, modulos, activo, observaciones, created_at FROM tenants ORDER BY id DESC'
     );
     res.json({ success: true, data: rows });
@@ -92,18 +98,18 @@ app.post('/saas-api/saas/tenants', saasAdminAuth, async (req, res) => {
     const slugClean = slug.toLowerCase().replace(/[^a-z0-9-]/g, '');
     const dbName    = `tenancy_${slugClean.replace(/-/g, '_')}`;
 
-    const [exist] = await masterPool.query('SELECT id FROM tenants WHERE slug = ?', [slugClean]);
+    const [exist] = await getPool().query('SELECT id FROM tenants WHERE slug = ?', [slugClean]);
     if (exist.length) return res.status(409).json({ success: false, error: { code: 'SLUG_EXISTS', message: 'El slug ya está en uso' } });
 
     const hash = await bcrypt.hash(password, 10);
 
-    const [result] = await masterPool.query(
+    const [result] = await getPool().query(
       'INSERT INTO tenants (nombre_negocio, slug, db_name, usuario_login, password_hash, correo, telefono, fecha_inicio_licencia, fecha_fin_licencia, modulos, activo, observaciones) VALUES (?,?,?,?,?,?,?,?,?,?,1,?)',
       [nombre_negocio, slugClean, dbName, usuario_login, hash, correo||null, telefono||null, fecha_inicio_licencia||null, fecha_fin_licencia||null, modulos||'pos,productos,cartera,finanzas,config', observaciones||null]
     );
 
     // Crear BD del tenant en Contabo
-    await masterPool.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    await getPool().query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
 
     // Schema básico del tenant
     const tenantPool = mysql.createPool({
@@ -182,7 +188,7 @@ app.put('/saas-api/saas/tenants/:id', saasAdminAuth, async (req, res) => {
     if (!sets.length) return res.status(400).json({ success: false, error: { code: 'NOTHING_TO_UPDATE' } });
 
     values.push(req.params.id);
-    await masterPool.query(`UPDATE tenants SET ${sets.join(', ')} WHERE id = ?`, values);
+    await getPool().query(`UPDATE tenants SET ${sets.join(', ')} WHERE id = ?`, values);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
@@ -192,10 +198,10 @@ app.put('/saas-api/saas/tenants/:id', saasAdminAuth, async (req, res) => {
 // ── PATCH /api/saas/tenants/:id/toggle ──
 app.patch('/saas-api/saas/tenants/:id/toggle', saasAdminAuth, async (req, res) => {
   try {
-    const [rows] = await masterPool.query('SELECT activo FROM tenants WHERE id = ?', [req.params.id]);
+    const [rows] = await getPool().query('SELECT activo FROM tenants WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
     const nuevoEstado = rows[0].activo ? 0 : 1;
-    await masterPool.query('UPDATE tenants SET activo = ? WHERE id = ?', [nuevoEstado, req.params.id]);
+    await getPool().query('UPDATE tenants SET activo = ? WHERE id = ?', [nuevoEstado, req.params.id]);
     res.json({ success: true, data: { activo: nuevoEstado } });
   } catch (err) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
