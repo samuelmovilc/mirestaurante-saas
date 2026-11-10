@@ -17,6 +17,7 @@ const ventasRoutes        = require('./routes/ventas')
 const cajaRoutes          = require('./routes/caja')
 const carteraRoutes       = require('./routes/cartera')
 const costeosRoutes       = require('./routes/costeos')
+const { router: uploadRoutes, UPLOAD_DIR } = require('./routes/upload')
 
 // Rutas SaaS superadmin (sin tenant)
 const saasAdminRoutes = require('./routes/saasAdmin')
@@ -53,6 +54,12 @@ app.get('/health', async (req, res) => {
 // ── Rutas SaaS admin (sin tenant) ─────────────────────────
 app.use('/api/saas', saasAdminRoutes)
 
+// ── Imágenes subidas (públicas; los nombres son aleatorios, no se pueden listar) ──
+app.use('/api/uploads', express.static(UPLOAD_DIR, {
+  index: false, dotfiles: 'ignore', maxAge: '7d',
+  setHeaders: (res) => { res.set('Cross-Origin-Resource-Policy', 'cross-origin'); res.set('X-Content-Type-Options', 'nosniff') },
+}))
+
 // ── Todas las rutas de tenant pasan primero por resolveTenant ──
 app.use('/api', resolveTenant)
 app.use('/api/auth',          authRoutes)
@@ -67,9 +74,13 @@ app.use('/api/ventas',        ventasRoutes)
 app.use('/api/caja',          cajaRoutes)
 app.use('/api/cartera',       carteraRoutes)
 app.use('/api/costeos',       costeosRoutes)
+app.use('/api/upload',        uploadRoutes)
 
 // ── Error handler ─────────────────────────────────────────
 app.use((err, req, res, _next) => {
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ success: false, error: { code: 'TOO_LARGE', message: 'El archivo es demasiado pesado' } })
+  }
   console.error('[ERROR]', err.message)
   res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } })
 })

@@ -29,6 +29,28 @@ function getTenant() {
   return localStorage.getItem('tenant') || ''
 }
 
+// Reduce la foto en el navegador (máx 1280 px, JPEG) para que suba rápido y pese poco
+async function reducirImagen(file, maxLado = 1280, calidad = 0.82) {
+  const url = URL.createObjectURL(file)
+  try {
+    const img = await new Promise((ok, fail) => {
+      const i = new Image()
+      i.onload = () => ok(i)
+      i.onerror = () => fail(new Error('No se pudo leer la imagen. Usa JPG, PNG o WEBP'))
+      i.src = url
+    })
+    const k = Math.min(1, maxLado / Math.max(img.naturalWidth, img.naturalHeight))
+    const c = document.createElement('canvas')
+    c.width  = Math.max(1, Math.round(img.naturalWidth  * k))
+    c.height = Math.max(1, Math.round(img.naturalHeight * k))
+    const ctx = c.getContext('2d')
+    ctx.fillStyle = '#fff'               // fondo blanco para PNG con transparencia
+    ctx.fillRect(0, 0, c.width, c.height)
+    ctx.drawImage(img, 0, 0, c.width, c.height)
+    return c.toDataURL('image/jpeg', calidad)
+  } finally { URL.revokeObjectURL(url) }
+}
+
 async function request(path, options = {}) {
   const token = getToken()
   const tenant = getTenant()
@@ -103,15 +125,11 @@ export const api = {
   deleteProducto:  (id)   => request(`/api/productos/${id}`, { method: 'DELETE' }),
   importProductos: (data) => request('/api/productos/importar', { method: 'POST', body: JSON.stringify({ productos: data }) }),
   uploadImage:     async (file) => {
-    const fd = new FormData();
-    fd.append('imagen', file);
-    const token = localStorage.getItem('token');
-    const headers = { ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-    const res = await fetch(`${BASE}/api/upload`, { method: 'POST', body: fd, headers });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error?.message || 'Error al subir imagen');
-    return data;
+    if (!file || !/^image\//.test(file.type)) throw new Error('Selecciona un archivo de imagen (JPG, PNG o WEBP)')
+    const imagen = await reducirImagen(file)
+    return request('/api/upload', { method: 'POST', body: JSON.stringify({ imagen }) })
   },
+
 
   // PEDIDOS
   getPedidos:      (params = {}) => request('/api/pedidos?' + new URLSearchParams(params)),

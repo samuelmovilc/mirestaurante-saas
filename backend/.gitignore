@@ -2,3 +2,6 @@ node_modules/
 .env
 *.log
 dist/
+
+# Imágenes subidas por los restaurantes (no van al repositorio)
+uploads/
