@@ -67,7 +67,7 @@ export default function ProductosAdmin() {
 
   async function eliminar(id, nombre) {
     if (!confirm(`¿Eliminar "${nombre}"?`)) return
-    try { await api.deleteProducto(id); toast('Producto eliminado'); cargar() }
+    try { const r = await api.deleteProducto(id); toast(r?.data?.desactivado ? 'Tiene ventas asociadas: se desactivó en lugar de borrarse' : 'Producto eliminado'); cargar() }
     catch (e) { toast(e.message, 'error') }
   }
 

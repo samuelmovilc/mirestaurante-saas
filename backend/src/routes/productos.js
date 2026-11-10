@@ -41,8 +41,19 @@ router.put('/:id', authMiddleware, soloAdmin, async (req, res) => {
 
 router.delete('/:id', authMiddleware, soloAdmin, async (req, res) => {
   try {
-    await req.tenantPool.query('UPDATE productos SET activo = 0 WHERE id = ?', [req.params.id])
-    res.json({ success: true })
+    // Borrado real. Las ventas/pedidos guardan el nombre del producto, así que el historial no se pierde.
+    try {
+      const [r] = await req.tenantPool.query('DELETE FROM productos WHERE id = ?', [req.params.id])
+      if (!r.affectedRows) return res.status(404).json({ success: false, error: { message: 'Producto no encontrado' } })
+      return res.json({ success: true, data: { eliminado: true } })
+    } catch (e) {
+      // Si algún registro lo referencia (esquema antiguo sin ON DELETE SET NULL), se desactiva en lugar de borrar
+      if (e.errno === 1451 || e.code === 'ER_ROW_IS_REFERENCED_2') {
+        await req.tenantPool.query('UPDATE productos SET activo = 0 WHERE id = ?', [req.params.id])
+        return res.json({ success: true, data: { eliminado: false, desactivado: true } })
+      }
+      throw e
+    }
   } catch (err) { res.status(500).json({ success: false, error: { message: err.message } }) }
 })
 

@@ -2,6 +2,7 @@
 // y adjunta pool + info a req.tenant
 const { getMasterPool } = require('../db/master')
 const { getTenantPool } = require('../db/tenant')
+const { ensureTenantSchema } = require('../db/ensureSchema')
 
 async function resolveTenant(req, res, next) {
   try {
@@ -44,6 +45,7 @@ async function resolveTenant(req, res, next) {
 
     req.tenant     = tenant
     req.tenantPool = getTenantPool(tenant.db_name)
+    await ensureTenantSchema(req.tenantPool, tenant.db_name)
     next()
   } catch (err) {
     console.error('[resolveTenant]', err.message)

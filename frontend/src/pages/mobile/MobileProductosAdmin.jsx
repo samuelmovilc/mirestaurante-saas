@@ -58,7 +58,7 @@ export default function MobileProductosAdmin() {
 
   async function eliminar(id, nombre) {
     if (!window.confirm(`¿Eliminar "${nombre}"?`)) return
-    try { await api.deleteProducto(id); toast('Producto eliminado', 'success'); cargar() }
+    try { const r = await api.deleteProducto(id); toast(r?.data?.desactivado ? 'Tiene ventas asociadas: se desactivó en lugar de borrarse' : 'Producto eliminado', 'success'); cargar() }
     catch (e) { toast(e.message, 'error') }
   }
 
