@@ -20,6 +20,9 @@ const EXPECTED = {
     orden:  'INT NULL DEFAULT 0',
     activo: 'TINYINT(1) NULL DEFAULT 1',
   },
+  mesas:        { activo: 'TINYINT(1) NULL DEFAULT 1' },
+  vendedores:   { activo: 'TINYINT(1) NULL DEFAULT 1' },
+  metodos_pago: { activo: 'TINYINT(1) NULL DEFAULT 1' },
 }
 
 const done = new Map() // dbName -> Promise
@@ -42,6 +45,14 @@ async function run(pool, dbName) {
       await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${col}\` ${def}`)
       console.log(`[ensureSchema] ${dbName}: agregada ${table}.${col}`)
     }
+  }
+
+  // "Sin estado" (NULL) solo pudo salir de un error de la app (la versión móvil mandaba "activa" en vez de
+  // "activo"); ningún botón guarda NULL a propósito. Esos registros deben quedar activos, como se pretendía.
+  for (const table of ['mesas', 'categorias', 'vendedores', 'metodos_pago']) {
+    if (!have[table]) continue
+    const [r] = await pool.query(`UPDATE \`${table}\` SET activo = 1 WHERE activo IS NULL`)
+    if (r.affectedRows) console.log(`[ensureSchema] ${dbName}: ${r.affectedRows} registro(s) de ${table} sin estado pasaron a activos`)
   }
 }
 

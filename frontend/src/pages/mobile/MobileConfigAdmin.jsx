@@ -29,10 +29,10 @@ export default function MobileConfigAdmin() {
   const [mps, reloadMps]     = useList(api.getMetodosPago)
 
   // Form states
-  const [mesaForm, setMesaForm]    = useState({ nombre: '', activa: 1 })
+  const [mesaForm, setMesaForm]    = useState({ nombre: '', activo: 1 })
   const [mesaEditId, setMesaEditId]= useState(null)
   
-  const [catForm, setCatForm]      = useState({ nombre: '', icono: '', activa: 1 })
+  const [catForm, setCatForm]      = useState({ nombre: '', icono: '', activo: 1 })
   const [catEditId, setCatEditId]  = useState(null)
 
   const [vendForm, setVendForm]    = useState({ nombre: '', rol: 'Vendedor', activo: 1 })
@@ -72,7 +72,7 @@ export default function MobileConfigAdmin() {
   }
 
   // ==== MESAS ====
-  function abrirMesa(m = null) { setMesaEditId(m?.id || null); setMesaForm(m ? { nombre: m.nombre, activa: m.activa } : { nombre: '', activa: 1 }); setActiveSection('form_mesa') }
+  function abrirMesa(m = null) { setMesaEditId(m?.id || null); setMesaForm(m ? { nombre: m.nombre, activo: m.activo } : { nombre: '', activo: 1 }); setActiveSection('form_mesa') }
   async function guardarMesa() {
     if (!mesaForm.nombre) return toast('Nombre requerido', 'error')
     try {
@@ -83,7 +83,7 @@ export default function MobileConfigAdmin() {
   }
 
   // ==== CATEGORIAS ====
-  function abrirCat(c = null) { setCatEditId(c?.id || null); setCatForm(c ? { nombre: c.nombre, icono: c.icono, activa: c.activa } : { nombre: '', icono: '', activa: 1 }); setActiveSection('form_cat') }
+  function abrirCat(c = null) { setCatEditId(c?.id || null); setCatForm(c ? { nombre: c.nombre, icono: c.icono, activo: c.activo } : { nombre: '', icono: '', activo: 1 }); setActiveSection('form_cat') }
   async function guardarCat() {
     if (!catForm.nombre) return toast('Nombre requerido', 'error')
     try {
@@ -116,18 +116,19 @@ export default function MobileConfigAdmin() {
   async function del(type, id, reloadFunc) {
     if (!window.confirm('¿Eliminar este elemento?')) return
     try {
-      if (type === 'mesa') await api.deleteMesa(id)
+      let r = null
+      if (type === 'mesa') r = await api.deleteMesa(id)
       if (type === 'cat') await api.deleteCategoria(id)
       if (type === 'vend') await api.deleteVendedor(id)
       if (type === 'mp') await api.deleteMetodoPago(id)
       reloadFunc()
-      toast('Eliminado correctamente', 'success')
+      toast(r?.data?.desactivado ? 'La mesa tiene pedidos: quedó inactiva en lugar de borrarse' : 'Eliminado correctamente', 'success')
     } catch (e) { toast(e.message, 'error') }
   }
 
   const sections = [
     { id: 'general', title: 'Ajustes Generales', icon: '⚙️', desc: 'Nombre, Logo, NIT, etc' },
-    { id: 'mesas', title: 'Mesas / Zonas', icon: '🪑', desc: `${mesas.length} mesas activas` },
+    { id: 'mesas', title: 'Mesas / Zonas', icon: '🪑', desc: `${mesas.filter(m => m.activo == 1).length} mesas activas` },
     { id: 'cats', title: 'Categorías', icon: '📋', desc: `${cats.length} categorías` },
     { id: 'vends', title: 'Personal', icon: '👥', desc: `${vends.length} empleados` },
     { id: 'mps', title: 'Métodos de Pago', icon: '💳', desc: `${mps.length} métodos` },
@@ -247,7 +248,7 @@ export default function MobileConfigAdmin() {
                   <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, border: '1px solid #e2e8f0', borderRadius: 8 }}>
                     <div>
                       <span style={{ fontWeight: 600, display: 'block' }}>{m.nombre}</span>
-                      <span className={`badge ${m.activa ? 'badge-green' : 'badge-red'}`} style={{ fontSize: 10 }}>{m.activa ? 'Activa' : 'Inactiva'}</span>
+                      <span className={`badge ${m.activo ? 'badge-green' : 'badge-red'}`} style={{ fontSize: 10 }}>{m.activo ? 'Activa' : 'Inactiva'}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button className="mobile-icon-btn" style={{ padding: 6, background: '#f1f5f9', borderRadius: 8 }} onClick={() => abrirMesa(m)}>✏️</button>
@@ -260,7 +261,7 @@ export default function MobileConfigAdmin() {
                   <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 12, border: '1px solid #e2e8f0', borderRadius: 8 }}>
                     <div>
                       <span style={{ fontWeight: 600, display: 'block' }}>{c.icono} {c.nombre}</span>
-                      <span className={`badge ${c.activa ? 'badge-green' : 'badge-red'}`} style={{ fontSize: 10 }}>{c.activa ? 'Activa' : 'Inactiva'}</span>
+                      <span className={`badge ${c.activo ? 'badge-green' : 'badge-red'}`} style={{ fontSize: 10 }}>{c.activo ? 'Activa' : 'Inactiva'}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button className="mobile-icon-btn" style={{ padding: 6, background: '#f1f5f9', borderRadius: 8 }} onClick={() => abrirCat(c)}>✏️</button>
@@ -329,7 +330,7 @@ export default function MobileConfigAdmin() {
                   <input className="input" style={{ width: '100%', padding: 12, borderRadius: 12 }} value={mesaForm.nombre} onChange={e => setMesaForm({...mesaForm, nombre: e.target.value})} />
                 </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
-                  <input type="checkbox" checked={mesaForm.activa == 1} onChange={e => setMesaForm({...mesaForm, activa: e.target.checked ? 1 : 0})} />
+                  <input type="checkbox" checked={mesaForm.activo == 1} onChange={e => setMesaForm({...mesaForm, activo: e.target.checked ? 1 : 0})} />
                   Mesa Activa
                 </label>
                 <button className="btn btn-primary" style={{ padding: 16, borderRadius: 12 }} onClick={guardarMesa}>Guardar Mesa</button>
@@ -348,7 +349,7 @@ export default function MobileConfigAdmin() {
                   <input className="input" style={{ width: '100%', padding: 12, borderRadius: 12 }} value={catForm.icono} onChange={e => setCatForm({...catForm, icono: e.target.value})} placeholder="🍔" />
                 </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
-                  <input type="checkbox" checked={catForm.activa == 1} onChange={e => setCatForm({...catForm, activa: e.target.checked ? 1 : 0})} />
+                  <input type="checkbox" checked={catForm.activo == 1} onChange={e => setCatForm({...catForm, activo: e.target.checked ? 1 : 0})} />
                   Activa
                 </label>
                 <button className="btn btn-primary" style={{ padding: 16, borderRadius: 12 }} onClick={guardarCat}>Guardar Categoría</button>

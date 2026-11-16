@@ -84,7 +84,7 @@ export default function ConfigAdmin() {
   }
   async function eliminarMesa(id) {
     if (!confirm('¿Eliminar esta mesa?')) return
-    try { await api.deleteMesa(id); reloadMesas(); toast('Mesa eliminada') }
+    try { const r = await api.deleteMesa(id); reloadMesas(); toast(r?.data?.desactivado ? 'La mesa tiene pedidos: quedó inactiva en lugar de borrarse' : 'Mesa eliminada') }
     catch (e) { toast(e.message, 'error') }
   }
 
