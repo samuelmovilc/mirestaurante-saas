@@ -73,41 +73,70 @@ export default function ProductosAdmin() {
 
   function descargarPlantilla() {
     const csv = 'Nombre,Categoría,Descripción,Precio Venta,Precio Costo,Visible (Si/No),Estado (Activo/Inactivo)\nCombo Ejemplo,Combos,Descripción del producto,24000,10000,Si,Activo\n"Cappuccino,leche vaporizada",Cafetería,"Espresso con leche",8900,4000,Si,Activo\n'
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a'); a.href = url; a.download = 'plantilla_productos.csv'; a.click()
   }
 
-  // Parser CSV que respeta campos entre comillas
-  function parseCSVLine(line) {
+  // Parser CSV que respeta campos entre comillas. Acepta coma o punto y coma (Excel en español guarda con ";").
+  function parseCSVLine(line, sep) {
     const cols = []
     let cur = '', inQ = false
     for (let i = 0; i < line.length; i++) {
       const c = line[i]
       if (c === '"') { inQ = !inQ }
-      else if (c === ',' && !inQ) { cols.push(cur.trim()); cur = '' }
+      else if (c === sep && !inQ) { cols.push(cur.trim()); cur = '' }
       else { cur += c }
     }
     cols.push(cur.trim())
     return cols
   }
 
+  const norm = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
+  // "24000", "24.000", "$ 24,000" -> 24000 ; "8900.50" -> 8900.5
+  function parsePrecio(v) {
+    let t = String(v || '').replace(/[^0-9.,]/g, '')
+    if (/^\d{1,3}([.,]\d{3})+$/.test(t)) t = t.replace(/[.,]/g, '')
+    else t = t.replace(',', '.')
+    const n = parseFloat(t)
+    return Number.isFinite(n) ? n : 0
+  }
+
   function importarCSV(e) {
     const file = e.target.files[0]; if (!file) return
     const reader = new FileReader()
     reader.onload = async ev => {
-      const lines = ev.target.result.split('\n').filter(l => l.trim())
+      const texto = String(ev.target.result || '').replace(/^\uFEFF/, '')
+      const lines = texto.split(/\r?\n/).filter(l => l.trim())
       if (lines.length < 2) return toast('Archivo vacío', 'error')
-      const items = []
-      for (let i = 1; i < lines.length; i++) {
-        const cols = parseCSVLine(lines[i])
-        if (cols.length < 4) continue
-        items.push({ nombre: cols[0], categoria_nombre: cols[1], descripcion: cols[2], precio_venta: cols[3], precio_costo: cols[4] || '0', visible_formulario: cols[5], estado: cols[6] })
-      }
+      const sep = (lines[0].match(/;/g) || []).length > (lines[0].match(/,/g) || []).length ? ';' : ','
       try {
-        const res = await api.importProductos(items)
-        setImportResult(res.data)
-        toast(`${res.data.importados} productos importados`)
+        // Categorías existentes; las que no existan se crean con el nombre del archivo.
+        const cats = {}
+        ;((await api.getCategorias()).data || []).forEach(c => { cats[norm(c.nombre)] = c.id })
+        let importados = 0; const errores = []
+        for (let i = 1; i < lines.length; i++) {
+          const cols = parseCSVLine(lines[i], sep)
+          const nombre = cols[0]
+          const precio = parsePrecio(cols[3])
+          if (!nombre || !precio) { errores.push(`Fila ${i + 1}: falta nombre o precio`); continue }
+          try {
+            let categoria_id = null
+            const catNom = (cols[1] || '').trim()
+            if (catNom) {
+              if (!cats[norm(catNom)]) { const r = await api.createCategoria({ nombre: catNom, activo: 1 }); cats[norm(catNom)] = r.data.id }
+              categoria_id = cats[norm(catNom)]
+            }
+            const visible = /^(no|0|false)$/i.test(norm(cols[5])) ? 0 : 1
+            const inactivo = /^inactiv/i.test(norm(cols[6]))
+            const data = { nombre, descripcion: cols[2] || null, categoria_id, precio_venta: precio, precio_costo: parsePrecio(cols[4]), imagen_url: null, visible_formulario: visible }
+            const r = await api.createProducto(data)
+            if (inactivo) await api.updateProducto(r.data.id, { ...data, activo: 0 })
+            importados++
+          } catch (err) { errores.push(`Fila ${i + 1} (${nombre}): ${err.message}`) }
+        }
+        setImportResult({ importados, errores })
+        toast(`${importados} productos importados${errores.length ? ` · ${errores.length} con error` : ''}`, errores.length ? 'error' : undefined)
         cargar()
       } catch (err) { toast(err.message, 'error') }
     }
@@ -132,6 +161,11 @@ export default function ProductosAdmin() {
         <div style={{ background: 'var(--vd-dim)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: 'var(--vd)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>✓ {importResult.importados} producto(s) importados{importResult.errores?.length ? ` · ${importResult.errores.length} con error` : ''}</span>
           <button style={{ background: 'none', border: 'none', color: 'var(--vd)', cursor: 'pointer', fontSize: 16 }} onClick={() => setImportResult(null)}>×</button>
+        </div>
+      )}
+      {importResult?.errores?.length > 0 && (
+        <div style={{ border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: 'var(--rd, #ef4444)' }}>
+          {importResult.errores.slice(0, 10).map((m, i) => <div key={i}>{m}</div>)}
         </div>
       )}
 
