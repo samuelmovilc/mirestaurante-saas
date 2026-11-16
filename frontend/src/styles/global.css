@@ -558,3 +558,115 @@ tbody tr:hover td { background: var(--primary-dim); }
   .sidebar { display: none; }
   .stats-4, .stats-3 { grid-template-columns: 1fr 1fr; }
 }
+
+/* ─── RESPONSIVE: teléfono y tablet pequeña ──────────────
+   La misma app de escritorio, adaptada. En pantallas anchas no cambia nada. */
+.nav-short { display: none; }
+
+@media (max-width: 768px) {
+  .hide-sm { display: none !important; }
+
+  /* Barra superior: marca + acciones. El menú pasa a la barra inferior. */
+  .topbar { height: 56px; padding: 0 12px; gap: 8px; }
+  .topbar-brand { min-width: 0; flex: 1; gap: 10px; }
+  .topbar-brand-text { min-width: 0; }
+  .topbar-brand-text h1 { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topbar-user { gap: 8px; flex-shrink: 0; }
+  .topbar-refresh { margin-right: 0 !important; }
+
+  .topbar-nav {
+    position: fixed; left: 0; right: 0; bottom: 0; margin: 0; z-index: 200;
+    background: var(--bg2); border-top: 1px solid var(--border);
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+  }
+  .nav-item { flex-direction: column; justify-content: center; gap: 3px; padding: 6px 2px; font-size: 10.5px; text-align: center; border-radius: 10px; }
+  .nav-item svg { width: 20px; height: 20px; }
+  .nav-full { display: none; }
+  .nav-short { display: inline; }
+
+  .main-content { min-height: calc(100vh - 56px); padding: 14px 12px calc(86px + env(safe-area-inset-bottom)); }
+  .page-header { flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+  .page-header h2 { font-size: 18px; }
+  .page-actions { width: 100%; }
+  .page-actions .btn { flex: 1 1 auto; }
+
+  /* Tablas: se deslizan hacia los lados dentro de su tarjeta */
+  .table-wrap, .car-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  th, td { padding: 9px 10px; }
+  .card-header { padding: 12px 14px; gap: 8px; flex-wrap: wrap; }
+  .card-body { padding: 14px; }
+
+  /* Tarjetas de cifras */
+  .stats-grid { gap: 10px; }
+  .stats-4, .stats-3 { grid-template-columns: 1fr 1fr; }
+  .stat-card { padding: 12px 14px; }
+  .stat-value { font-size: 19px; }
+
+  /* Filtros */
+  .filters-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; }
+  .filters-bar > * { min-width: 0; }
+  .filters-bar .filter-input, .filters-bar input, .filters-bar select { width: 100% !important; }
+  .filters-bar .btn { width: 100%; }
+
+  /* Pedidos: la lista ocupa todo y el detalle se abre a pantalla completa */
+  .pedidos-layout { flex-direction: column; gap: 14px !important; }
+  .pedidos-layout > div { width: 100%; }
+  .pedidos-detail {
+    display: none; position: fixed !important; inset: 0; top: 0 !important;
+    width: 100% !important; min-height: 0 !important; z-index: 500;
+    border-radius: 0; border: none; overflow-y: auto !important; background: var(--bg2);
+  }
+  .pedidos-detail.has-sel { display: block; }
+  /* Filas de tabla convertidas en tarjetas (Pedidos y Productos) */
+  .tbl-pedidos, .tbl-pedidos tbody, .tbl-prod, .tbl-prod tbody { display: block; min-width: 0 !important; width: 100%; }
+  .tbl-pedidos thead, .tbl-prod thead { display: none; }
+  .tbl-pedidos tr, .tbl-prod tr {
+    display: grid; column-gap: 10px; row-gap: 5px; align-items: center;
+    padding: 12px 12px; border-bottom: 1px solid var(--border);
+  }
+  .tbl-pedidos tr:last-child, .tbl-prod tr:last-child { border-bottom: none; }
+  .tbl-pedidos td, .tbl-prod td { display: block; padding: 0 !important; border: none; min-width: 0; }
+  .tbl-pedidos td[colspan], .tbl-prod td[colspan] { grid-column: 1 / -1 !important; grid-row: auto !important; text-align: center; }
+
+  /* Pedidos: [☐] #pedido · total / cliente · mesa / estado / acciones */
+  .tbl-pedidos tr { grid-template-columns: 26px 1fr auto; }
+  .tbl-pedidos td:nth-child(1)  { grid-column: 1; grid-row: 1 / span 3; align-self: start; padding-top: 2px !important; }
+  .tbl-pedidos td:nth-child(2)  { grid-column: 2; grid-row: 1; font-size: 15px; }
+  .tbl-pedidos td:nth-child(9)  { grid-column: 3; grid-row: 1; justify-self: end; font-size: 15px; }
+  .tbl-pedidos td:nth-child(4)  { grid-column: 2; grid-row: 2; }
+  .tbl-pedidos td:nth-child(5)  { grid-column: 3; grid-row: 2; justify-self: end; }
+  .tbl-pedidos td:nth-child(10) { grid-column: 2 / -1; grid-row: 3; }
+  .tbl-pedidos td:nth-child(11) { grid-column: 1 / -1; grid-row: 4; margin-top: 4px; }
+  .tbl-pedidos td:nth-child(3), .tbl-pedidos td:nth-child(6),
+  .tbl-pedidos td:nth-child(7), .tbl-pedidos td:nth-child(8) { display: none; }
+  .tbl-pedidos td:nth-child(11) > div { flex-wrap: wrap; }
+
+  /* Productos: [img] nombre · precio / categoría · estado / acciones */
+  .tbl-prod tr { grid-template-columns: 48px 1fr auto; }
+  .tbl-prod td:nth-child(1) { grid-column: 1; grid-row: 1 / span 2; }
+  .tbl-prod td:nth-child(2) { grid-column: 2; grid-row: 1; line-height: 1.25; }
+  .tbl-prod td:nth-child(4) { grid-column: 3; grid-row: 1; justify-self: end; }
+  .tbl-prod td:nth-child(3) { grid-column: 2; grid-row: 2; }
+  .tbl-prod td:nth-child(8) { grid-column: 3; grid-row: 2; justify-self: end; }
+  .tbl-prod td:nth-child(9) { grid-column: 1 / -1; grid-row: 3; margin-top: 4px; }
+  .tbl-prod td:nth-child(5), .tbl-prod td:nth-child(6), .tbl-prod td:nth-child(7) { display: none; }
+
+  /* Costeo: el nombre del ingrediente va en su propia línea */
+  .cos-ing-row { grid-template-columns: 1fr 84px 1fr 36px; }
+  .cos-ing-row > :first-child { grid-column: 1 / -1; }
+
+  /* Configuración: las dos columnas pasan a una sola */
+  .cfg-grid { grid-template-columns: 1fr !important; }
+
+  /* Ventanas emergentes */
+  .modal-overlay { padding: 10px; }
+  .modal-box { padding: 18px; max-height: 92vh; }
+  .modal-footer { flex-wrap: wrap; }
+  .modal-footer .btn { flex: 1 1 auto; }
+
+  /* Avisos: arriba de la barra inferior y a lo ancho */
+  .toast-container { left: 12px; right: 12px; bottom: calc(76px + env(safe-area-inset-bottom)); }
+  .toast { max-width: none; }
+}

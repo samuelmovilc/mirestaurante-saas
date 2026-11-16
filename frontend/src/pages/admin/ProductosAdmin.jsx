@@ -141,7 +141,7 @@ export default function ProductosAdmin() {
           <div style={{ padding: 48, textAlign: 'center' }}><div className="spinner" style={{ margin: '0 auto' }} /></div>
         ) : (
           <div className="table-wrap">
-            <table>
+            <table className="tbl-prod">
               <thead>
                 <tr><th>Imagen</th><th>Producto</th><th>Categoría</th><th>Precio venta</th><th>Precio costo</th><th>Descripción</th><th>Visible</th><th>Estado</th><th>Acciones</th></tr>
               </thead>

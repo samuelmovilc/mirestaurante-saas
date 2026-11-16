@@ -276,7 +276,7 @@ export default function PedidosAdmin() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+      <div className="pedidos-layout" style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
 
           {/* FILTROS */}
@@ -334,7 +334,7 @@ export default function PedidosAdmin() {
             <div style={{ padding: 40, textAlign: 'center' }}><div className="spinner" style={{ margin: '0 auto' }} /></div>
           ) : (
             <div className="table-wrap" style={{ overflowX: 'auto' }}>
-              <table style={{ minWidth: 1000, borderSpacing: 0, borderCollapse: 'collapse' }}>
+              <table className="tbl-pedidos" style={{ minWidth: 1000, borderSpacing: 0, borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)' }}>
                     <th style={{ width: 32, padding: '12px 16px' }}>
@@ -413,7 +413,7 @@ export default function PedidosAdmin() {
       </div>
 
       {/* PANEL LATERAL DE DETALLE (EL CARRITO SIEMPRE VISIBLE) */}
-      <div className="card" style={{ width: 440, flexShrink: 0, position: 'sticky', top: 84, minHeight: 600 }}>
+      <div className={`card pedidos-detail${selPedido ? ' has-sel' : ''}`} style={{ width: 440, flexShrink: 0, position: 'sticky', top: 84, minHeight: 600 }}>
           {!selPedido ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: 40, color: 'var(--text3)', textAlign: 'center' }}>
               <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.5 }}>🛒</div>

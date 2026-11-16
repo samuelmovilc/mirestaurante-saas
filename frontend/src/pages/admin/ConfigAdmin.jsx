@@ -169,7 +169,7 @@ export default function ConfigAdmin() {
         <button className="btn btn-primary" onClick={guardarConfig} disabled={saving}>{saving ? 'Guardando...' : 'Guardar cambios'}</button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div className="cfg-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
 
         {/* COLUMNA IZQUIERDA */}
         <div>
