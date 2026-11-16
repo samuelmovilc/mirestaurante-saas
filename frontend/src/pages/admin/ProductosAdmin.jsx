@@ -73,17 +73,32 @@ export default function ProductosAdmin() {
 
   const ENCABEZADO = ['Nombre', 'Categoría', 'Descripción', 'Precio Venta', 'Precio Costo', 'Visible (Si/No)', 'Estado (Activo/Inactivo)']
 
-  async function descargarPlantilla() {
+  const COMBOS = [
+    ['Combo Mojito + Helado', 'Combos', 'Mojito clásico con copa de helado de vainilla', 28000, 11000, 'Si', 'Activo'],
+    ['Combo Piña Colada + Helado de Coco', 'Combos', 'Piña colada con helado de coco', 30000, 12000, 'Si', 'Activo'],
+    ['Combo Margarita + Helado de Limón', 'Combos', 'Margarita de limón con helado de limón', 29000, 11500, 'Si', 'Activo'],
+    ['Combo Daiquirí Fresa + Helado', 'Combos', 'Daiquirí de fresa con helado de fresa', 28000, 11000, 'Si', 'Activo'],
+    ['Combo Caipirinha + Helado Maracuyá', 'Combos', 'Caipirinha con helado de maracuyá', 29000, 11500, 'Si', 'Activo'],
+    ['Combo Sangría + Helado', 'Combos', 'Copa de sangría con helado de vainilla', 32000, 13000, 'Si', 'Activo'],
+    ['Combo Cóctel Sin Alcohol + Helado', 'Combos', 'Cóctel sin alcohol con bola de helado', 22000, 8500, 'Si', 'Activo'],
+    ['Combo Pareja 2 Cócteles + 2 Helados', 'Combos', 'Dos cócteles a elección con dos copas de helado', 54000, 22000, 'Si', 'Activo'],
+    ['Combo Mojito Maracuyá + Brownie', 'Combos', 'Mojito de maracuyá con brownie y helado', 33000, 13500, 'Si', 'Activo'],
+    ['Combo Cóctel Frutal + Malteada', 'Combos', 'Cóctel frutal con malteada de helado', 31000, 12500, 'Si', 'Activo'],
+  ]
+
+  async function descargarExcel(filas, archivo) {
     const XLSX = await import('xlsx')
-    const ws = XLSX.utils.aoa_to_sheet([
-      ENCABEZADO,
-      ['Combo Ejemplo', 'Combos', 'Descripción del producto', 24000, 10000, 'Si', 'Activo'],
-      ['Cappuccino', 'Cafetería', 'Espresso con leche vaporizada', 8900, 4000, 'Si', 'Activo'],
-    ])
-    ws['!cols'] = [{ wch: 34 }, { wch: 16 }, { wch: 42 }, { wch: 13 }, { wch: 13 }, { wch: 15 }, { wch: 24 }]
+    const ws = XLSX.utils.aoa_to_sheet([ENCABEZADO, ...filas])
+    ws['!cols'] = [{ wch: 36 }, { wch: 16 }, { wch: 50 }, { wch: 13 }, { wch: 13 }, { wch: 15 }, { wch: 24 }]
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Productos')
-    XLSX.writeFile(wb, 'plantilla_productos.xlsx')
+    XLSX.writeFile(wb, archivo)
   }
+
+  const descargarPlantilla = () => descargarExcel([
+    ['Combo Ejemplo', 'Combos', 'Descripción del producto', 24000, 10000, 'Si', 'Activo'],
+    ['Cappuccino', 'Cafetería', 'Espresso con leche vaporizada', 8900, 4000, 'Si', 'Activo'],
+  ], 'plantilla_productos.xlsx')
+  const descargarCombos = () => descargarExcel(COMBOS, 'combos_cocteleria_helados.xlsx')
 
   // Parser CSV que respeta campos entre comillas. Acepta coma o punto y coma (Excel en español guarda con ";").
   function parseCSVLine(line, sep) {
@@ -168,6 +183,7 @@ export default function ProductosAdmin() {
         <div><h2>Productos</h2><p>Catálogo del menú.</p></div>
         <div className="page-actions">
           <button className="btn btn-ghost" onClick={descargarPlantilla}>Descargar plantilla Excel</button>
+          <button className="btn btn-ghost" onClick={descargarCombos}>Descargar combos (Excel)</button>
           <button className="btn btn-dark" onClick={() => document.getElementById('csvImport').click()}>Carga masiva (Excel)</button>
           <input type="file" id="csvImport" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={importarArchivo} />
           <button className="btn btn-primary" onClick={abrirNuevo}>+ Nuevo producto</button>
