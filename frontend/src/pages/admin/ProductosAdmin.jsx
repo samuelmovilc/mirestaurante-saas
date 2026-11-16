@@ -71,11 +71,18 @@ export default function ProductosAdmin() {
     catch (e) { toast(e.message, 'error') }
   }
 
-  function descargarPlantilla() {
-    const csv = 'Nombre,Categoría,Descripción,Precio Venta,Precio Costo,Visible (Si/No),Estado (Activo/Inactivo)\nCombo Ejemplo,Combos,Descripción del producto,24000,10000,Si,Activo\n"Cappuccino,leche vaporizada",Cafetería,"Espresso con leche",8900,4000,Si,Activo\n'
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = 'plantilla_productos.csv'; a.click()
+  const ENCABEZADO = ['Nombre', 'Categoría', 'Descripción', 'Precio Venta', 'Precio Costo', 'Visible (Si/No)', 'Estado (Activo/Inactivo)']
+
+  async function descargarPlantilla() {
+    const XLSX = await import('xlsx')
+    const ws = XLSX.utils.aoa_to_sheet([
+      ENCABEZADO,
+      ['Combo Ejemplo', 'Combos', 'Descripción del producto', 24000, 10000, 'Si', 'Activo'],
+      ['Cappuccino', 'Cafetería', 'Espresso con leche vaporizada', 8900, 4000, 'Si', 'Activo'],
+    ])
+    ws['!cols'] = [{ wch: 34 }, { wch: 16 }, { wch: 42 }, { wch: 13 }, { wch: 13 }, { wch: 15 }, { wch: 24 }]
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Productos')
+    XLSX.writeFile(wb, 'plantilla_productos.xlsx')
   }
 
   // Parser CSV que respeta campos entre comillas. Acepta coma o punto y coma (Excel en español guarda con ";").
@@ -102,46 +109,56 @@ export default function ProductosAdmin() {
     return Number.isFinite(n) ? n : 0
   }
 
-  function importarCSV(e) {
-    const file = e.target.files[0]; if (!file) return
-    const reader = new FileReader()
-    reader.onload = async ev => {
-      const texto = String(ev.target.result || '').replace(/^\uFEFF/, '')
-      const lines = texto.split(/\r?\n/).filter(l => l.trim())
-      if (lines.length < 2) return toast('Archivo vacío', 'error')
-      const sep = (lines[0].match(/;/g) || []).length > (lines[0].match(/,/g) || []).length ? ';' : ','
-      try {
-        // Categorías existentes; las que no existan se crean con el nombre del archivo.
-        const cats = {}
-        ;((await api.getCategorias()).data || []).forEach(c => { cats[norm(c.nombre)] = c.id })
-        let importados = 0; const errores = []
-        for (let i = 1; i < lines.length; i++) {
-          const cols = parseCSVLine(lines[i], sep)
-          const nombre = cols[0]
-          const precio = parsePrecio(cols[3])
-          if (!nombre || !precio) { errores.push(`Fila ${i + 1}: falta nombre o precio`); continue }
-          try {
-            let categoria_id = null
-            const catNom = (cols[1] || '').trim()
-            if (catNom) {
-              if (!cats[norm(catNom)]) { const r = await api.createCategoria({ nombre: catNom, activo: 1 }); cats[norm(catNom)] = r.data.id }
-              categoria_id = cats[norm(catNom)]
-            }
-            const visible = /^(no|0|false)$/i.test(norm(cols[5])) ? 0 : 1
-            const inactivo = /^inactiv/i.test(norm(cols[6]))
-            const data = { nombre, descripcion: cols[2] || null, categoria_id, precio_venta: precio, precio_costo: parsePrecio(cols[4]), imagen_url: null, visible_formulario: visible }
-            const r = await api.createProducto(data)
-            if (inactivo) await api.updateProducto(r.data.id, { ...data, activo: 0 })
-            importados++
-          } catch (err) { errores.push(`Fila ${i + 1} (${nombre}): ${err.message}`) }
-        }
-        setImportResult({ importados, errores })
-        toast(`${importados} productos importados${errores.length ? ` · ${errores.length} con error` : ''}`, errores.length ? 'error' : undefined)
-        cargar()
-      } catch (err) { toast(err.message, 'error') }
+  // Lee el archivo (Excel o CSV) y devuelve las filas como arreglos de texto.
+  async function leerFilas(file) {
+    if (/\.(xlsx|xlsm|xls)$/i.test(file.name)) {
+      const XLSX = await import('xlsx')
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true })
+        .map(r => r.map(c => (c === null || c === undefined) ? '' : String(c).trim()))
+        .filter(r => r.some(c => c !== ''))
     }
-    reader.readAsText(file)
-    e.target.value = ''
+    const texto = (await file.text()).replace(/^\uFEFF/, '')
+    const lines = texto.split(/\r?\n/).filter(l => l.trim())
+    const sep = (lines[0]?.match(/;/g) || []).length > (lines[0]?.match(/,/g) || []).length ? ';' : ','
+    return lines.map(l => parseCSVLine(l, sep))
+  }
+
+  async function importarArchivo(e) {
+    const file = e.target.files[0]; e.target.value = ''
+    if (!file) return
+    try {
+      const filas = await leerFilas(file)
+      if (filas.length < 2) return toast('Archivo vacío', 'error')
+      // Categorías existentes; las que no existan se crean con el nombre del archivo.
+      const cats = {}
+      ;((await api.getCategorias()).data || []).forEach(c => { cats[norm(c.nombre)] = c.id })
+      let importados = 0; const errores = []
+      for (let i = 1; i < filas.length; i++) {
+        const cols = filas[i]
+        const nombre = cols[0]
+        const precio = parsePrecio(cols[3])
+        if (!nombre || !precio) { errores.push(`Fila ${i + 1}: falta nombre o precio`); continue }
+        try {
+          let categoria_id = null
+          const catNom = (cols[1] || '').trim()
+          if (catNom) {
+            if (!cats[norm(catNom)]) { const r = await api.createCategoria({ nombre: catNom, activo: 1 }); cats[norm(catNom)] = r.data.id }
+            categoria_id = cats[norm(catNom)]
+          }
+          const visible = /^(no|0|false)$/i.test(norm(cols[5])) ? 0 : 1
+          const inactivo = /^inactiv/i.test(norm(cols[6]))
+          const data = { nombre, descripcion: cols[2] || null, categoria_id, precio_venta: precio, precio_costo: parsePrecio(cols[4]), imagen_url: null, visible_formulario: visible }
+          const r = await api.createProducto(data)
+          if (inactivo) await api.updateProducto(r.data.id, { ...data, activo: 0 })
+          importados++
+        } catch (err) { errores.push(`Fila ${i + 1} (${nombre}): ${err.message}`) }
+      }
+      setImportResult({ importados, errores })
+      toast(`${importados} productos importados${errores.length ? ` · ${errores.length} con error` : ''}`, errores.length ? 'error' : undefined)
+      cargar()
+    } catch (err) { toast('No se pudo leer el archivo: ' + err.message, 'error') }
   }
 
   return (
@@ -150,9 +167,9 @@ export default function ProductosAdmin() {
       <div className="page-header">
         <div><h2>Productos</h2><p>Catálogo del menú.</p></div>
         <div className="page-actions">
-          <button className="btn btn-ghost" onClick={descargarPlantilla}>Descargar plantilla CSV</button>
-          <button className="btn btn-dark" onClick={() => document.getElementById('csvImport').click()}>Carga masiva CSV</button>
-          <input type="file" id="csvImport" accept=".csv" style={{ display: 'none' }} onChange={importarCSV} />
+          <button className="btn btn-ghost" onClick={descargarPlantilla}>Descargar plantilla Excel</button>
+          <button className="btn btn-dark" onClick={() => document.getElementById('csvImport').click()}>Carga masiva (Excel)</button>
+          <input type="file" id="csvImport" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={importarArchivo} />
           <button className="btn btn-primary" onClick={abrirNuevo}>+ Nuevo producto</button>
         </div>
       </div>
