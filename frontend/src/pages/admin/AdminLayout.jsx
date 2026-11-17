@@ -38,7 +38,7 @@ export default function AdminLayout() {
             {logoUrl ? <img src={logoUrl} alt="logo" /> : '🍗'}
           </div>
           <div className="topbar-brand-text">
-            <h1>{nombre}</h1>
+            <h1 title={nombre}>{nombre}</h1>
             <p>Panel admin</p>
           </div>
         </div>
