@@ -13,6 +13,10 @@ const NAV = [
 ]
 
 export default function AdminLayout() {
+  // Formulario público de pedidos de ESTE restaurante, para abrirlo en otra pestaña
+  let slug = ''
+  try { slug = localStorage.getItem('tenant') || '' } catch {}
+  const urlFormulario = slug ? `/?tenant=${encodeURIComponent(slug)}` : '/'
   const { usuario, logout } = useAuth()
   const navigate = useNavigate()
   const [logoUrl, setLogoUrl] = useState(null)
@@ -63,7 +67,7 @@ export default function AdminLayout() {
             <span>↻<span className="hide-sm"> Actualizar Data</span></span>
           </button>
           
-          <a href="/" className="btn btn-primary btn-sm" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <a href={urlFormulario} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
             <span>+ <span className="hide-sm">Tomar&nbsp;</span>Pedido</span>
           </a>
           {usuario && (
