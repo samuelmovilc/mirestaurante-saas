@@ -255,7 +255,7 @@ export default function PedidosAdmin() {
   })
 
   return (
-    <div>
+    <div className="pedidos-page">
       <ToastContainer />
       <div className="page-header" style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 24, marginBottom: 16 }}>
         <div>
