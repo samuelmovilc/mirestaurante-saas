@@ -15,6 +15,10 @@ const EXPECTED = {
     activo:             'TINYINT(1) NULL DEFAULT 1',
     created_at:         'TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP',
     updated_at:         'TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+    // Inventario: solo se controla donde controla_stock = 1
+    controla_stock:     'TINYINT(1) NOT NULL DEFAULT 0',
+    stock:              'INT NOT NULL DEFAULT 0',
+    stock_minimo:       'INT NOT NULL DEFAULT 0',
   },
   categorias: {
     orden:  'INT NULL DEFAULT 0',
@@ -46,6 +50,20 @@ async function run(pool, dbName) {
       console.log(`[ensureSchema] ${dbName}: agregada ${table}.${col}`)
     }
   }
+
+  // Historial de movimientos de inventario (ventas, entradas, mermas, conteos).
+  await pool.query(`CREATE TABLE IF NOT EXISTS stock_movimientos (
+    id               INT AUTO_INCREMENT PRIMARY KEY,
+    producto_id      INT NOT NULL,
+    tipo             VARCHAR(20) NOT NULL,
+    cantidad         INT NOT NULL,
+    stock_resultante INT NOT NULL,
+    pedido_id        INT NULL,
+    nota             VARCHAR(255) NULL,
+    usuario          VARCHAR(100) NULL,
+    created_at       TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_stock_mov_producto (producto_id, id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
 
   // "Sin estado" (NULL) solo pudo salir de un error de la app (la versión móvil mandaba "activa" en vez de
   // "activo"); ningún botón guarda NULL a propósito. Esos registros deben quedar activos, como se pretendía.

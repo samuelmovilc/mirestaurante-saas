@@ -45,6 +45,8 @@ export default function PedidoPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  const recargarProductos = () => api.getProductos({ activo: 1, visible_formulario: 1 }).then(r => setProductos(r.data || [])).catch(() => {})
+
   const productosFiltrados = useMemo(() => {
     let lista = productos
     if (catActiva !== 'todos') lista = lista.filter(p => p.categoria_id == catActiva)
@@ -54,7 +56,12 @@ export default function PedidoPage() {
 
   const total = carrito.reduce((s, it) => s + it.precio_venta * it.cantidad, 0)
 
+  // Productos con inventario: no se puede pedir más de lo que hay.
+  const enCarrito = id => carrito.find(x => x.id === id)?.cantidad || 0
+  const agotado = p => !!p.controla_stock && p.stock <= 0
   function agregar(prod) {
+    if (agotado(prod)) return toast(`"${prod.nombre}" está agotado`, 'error')
+    if (prod.controla_stock && enCarrito(prod.id) >= prod.stock) return toast(`Solo quedan ${prod.stock} de "${prod.nombre}"`, 'error')
     setCarrito(prev => {
       const ex = prev.find(x => x.id === prod.id)
       if (ex) return prev.map(x => x.id === prod.id ? { ...x, cantidad: x.cantidad + 1 } : x)
@@ -64,6 +71,8 @@ export default function PedidoPage() {
   }
 
   function cambiarQty(id, delta) {
+    const prod = productos.find(x => x.id === id)
+    if (delta > 0 && prod?.controla_stock && enCarrito(id) >= prod.stock) return toast(`Solo quedan ${prod.stock} de "${prod.nombre}"`, 'error')
     setCarrito(prev => {
       const updated = prev.map(x => x.id === id ? { ...x, cantidad: x.cantidad + delta } : x)
       return updated.filter(x => x.cantidad > 0)
@@ -102,8 +111,10 @@ export default function PedidoPage() {
       setTelefono('')
       setDireccion('')
       setObs('')
+      recargarProductos()
     } catch (err) {
       toast(err.message || 'Error al enviar pedido', 'error')
+      recargarProductos() // el stock pudo cambiar mientras se armaba el pedido
     } finally {
       setEnviando(false)
     }
@@ -226,16 +237,19 @@ export default function PedidoPage() {
             ) : (
               <div className="productos-grid">
                 {productosFiltrados.map(p => (
-                  <div key={p.id} className="prod-card" onClick={() => agregar(p)}>
+                  <div key={p.id} className="prod-card" onClick={() => agregar(p)} style={agotado(p) ? { opacity: 0.55 } : undefined}>
                     <div className="prod-card-img">
                       {p.imagen_url ? <img src={p.imagen_url} alt={p.nombre} /> : <span>{p.categoria_icono || '🍽️'}</span>}
                     </div>
                     <div className="prod-card-body">
                       <div className="prod-card-name">{p.nombre}</div>
                       {p.descripcion && <div className="prod-card-desc">{p.descripcion}</div>}
+                      {p.controla_stock && p.stock > 0 && p.stock <= p.stock_minimo && <div style={{ fontSize: 11, color: 'var(--rd)', fontWeight: 600 }}>Quedan {p.stock}</div>}
                       <div className="prod-card-footer">
                         <div className="prod-card-price">{fmt(p.precio_venta)}</div>
-                        <button className="btn-add-prod" onClick={e => { e.stopPropagation(); agregar(p) }}>+</button>
+                        {agotado(p)
+                          ? <span className="badge badge-red">Agotado</span>
+                          : <button className="btn-add-prod" onClick={e => { e.stopPropagation(); agregar(p) }}>+</button>}
                       </div>
                     </div>
                   </div>

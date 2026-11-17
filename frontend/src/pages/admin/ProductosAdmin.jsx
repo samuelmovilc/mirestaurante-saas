@@ -1,8 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { api, fmt } from '../../lib/api'
 import { useToast } from '../../hooks/useToast'
 
-const EMPTY = { nombre: '', descripcion: '', precio_venta: '', precio_costo: '', categoria_id: '', imagen_url: '', visible_formulario: 1, activo: 1 }
+const EMPTY = { nombre: '', descripcion: '', precio_venta: '', precio_costo: '', categoria_id: '', imagen_url: '', visible_formulario: 1, activo: 1, controla_stock: 0, stock: '', stock_minimo: '' }
+
+const FILTROS0 = { q: '', cat: '', estado: '', stock: '', visible: '', orden: 'nombre' }
+const TIPO_MOV = { venta: 'Venta', entrada: 'Entrada', salida: 'Salida', conteo: 'Conteo', inicial: 'Stock inicial', devolucion: 'Devolución', ajuste: 'Ajuste de pedido' }
+
+const norm = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
+
+// Estado de inventario de un producto
+function estadoStock(p) {
+  if (!p.controla_stock) return 'sin_control'
+  if (p.stock <= 0) return 'agotado'
+  if (p.stock <= p.stock_minimo) return 'bajo'
+  return 'ok'
+}
 
 export default function ProductosAdmin() {
   const { toast, ToastContainer } = useToast()
@@ -15,6 +28,9 @@ export default function ProductosAdmin() {
   const [guardando, setGuardando]   = useState(false)
   const [importResult, setImportResult] = useState(null)
   const [subiendoImg, setSubiendoImg] = useState(false)
+  const [filtros, setFiltros]       = useState(FILTROS0)
+  const [ajuste, setAjuste]         = useState(null) // { p, tipo, cantidad, nota, movs, guardando }
+  const setF = (k, v) => setFiltros(f => ({ ...f, [k]: v }))
 
   async function cargar() {
     setLoading(true)
@@ -30,7 +46,7 @@ export default function ProductosAdmin() {
 
   function abrirNuevo() { setForm(EMPTY); setEditId(null); setModal(true) }
   function abrirEditar(p) {
-    setForm({ nombre: p.nombre, descripcion: p.descripcion || '', precio_venta: p.precio_venta, precio_costo: p.precio_costo, categoria_id: p.categoria_id || '', imagen_url: p.imagen_url || '', visible_formulario: p.visible_formulario, activo: p.activo })
+    setForm({ nombre: p.nombre, descripcion: p.descripcion || '', precio_venta: p.precio_venta, precio_costo: p.precio_costo, categoria_id: p.categoria_id || '', imagen_url: p.imagen_url || '', visible_formulario: p.visible_formulario, activo: p.activo, controla_stock: p.controla_stock ? 1 : 0, stock: p.stock ?? 0, stock_minimo: p.stock_minimo ?? 0 })
     setEditId(p.id)
     setModal(true)
   }
@@ -39,7 +55,8 @@ export default function ProductosAdmin() {
     if (!form.nombre || !form.precio_venta) return toast('Nombre y precio de venta son requeridos', 'error')
     setGuardando(true)
     try {
-      const payload = { ...form, precio_venta: parseFloat(form.precio_venta), precio_costo: parseFloat(form.precio_costo || 0), categoria_id: form.categoria_id || null }
+      const payload = { ...form, precio_venta: parseFloat(form.precio_venta), precio_costo: parseFloat(form.precio_costo || 0), categoria_id: form.categoria_id || null,
+        controla_stock: form.controla_stock ? 1 : 0, stock: Math.max(0, parseInt(form.stock) || 0), stock_minimo: Math.max(0, parseInt(form.stock_minimo) || 0) }
       if (editId) await api.updateProducto(editId, payload)
       else        await api.createProducto(payload)
       toast(editId ? 'Producto actualizado' : 'Producto creado')
@@ -65,13 +82,57 @@ export default function ProductosAdmin() {
     }
   }
 
+  // ── Filtros dinámicos: se aplican al instante, sin botón ──
+  const lista = useMemo(() => {
+    const q = norm(filtros.q)
+    const r = productos.filter(p => {
+      if (q && !norm(`${p.nombre} ${p.descripcion || ''} ${p.categoria_nombre || ''}`).includes(q)) return false
+      if (filtros.cat === 'sin' ? p.categoria_id : (filtros.cat && String(p.categoria_id) !== filtros.cat)) return false
+      if (filtros.estado && String(p.activo ? 1 : 0) !== filtros.estado) return false
+      if (filtros.visible && String(p.visible_formulario ? 1 : 0) !== filtros.visible) return false
+      if (filtros.stock && estadoStock(p) !== filtros.stock) return false
+      return true
+    })
+    const ord = {
+      nombre:   (a, b) => a.nombre.localeCompare(b.nombre, 'es'),
+      vendidos: (a, b) => (b.vendidos || 0) - (a.vendidos || 0),
+      stock:    (a, b) => (a.controla_stock ? a.stock : Infinity) - (b.controla_stock ? b.stock : Infinity),
+      precio:   (a, b) => b.precio_venta - a.precio_venta,
+    }[filtros.orden]
+    return ord ? [...r].sort(ord) : r
+  }, [productos, filtros])
+
+  const resumen = useMemo(() => ({
+    agotados: productos.filter(p => estadoStock(p) === 'agotado').length,
+    bajos:    productos.filter(p => estadoStock(p) === 'bajo').length,
+    controlados: productos.filter(p => p.controla_stock).length,
+    vendidos: productos.reduce((s, p) => s + Number(p.vendidos || 0), 0),
+  }), [productos])
+  const hayFiltros = JSON.stringify(filtros) !== JSON.stringify(FILTROS0)
+
+  async function abrirAjuste(p) {
+    setAjuste({ p, tipo: 'entrada', cantidad: '', nota: '', movs: null, guardando: false })
+    try { const r = await api.movimientosStock(p.id); setAjuste(a => a && a.p.id === p.id ? { ...a, movs: r.data || [] } : a) }
+    catch { setAjuste(a => a ? { ...a, movs: [] } : a) }
+  }
+  async function guardarAjuste() {
+    const a = ajuste
+    if (a.cantidad === '' || isNaN(a.cantidad)) return toast('Ingresa la cantidad', 'error')
+    setAjuste(x => ({ ...x, guardando: true }))
+    try {
+      const r = await api.ajustarStock(a.p.id, { tipo: a.tipo, cantidad: parseInt(a.cantidad), nota: a.nota })
+      toast(`Stock de ${a.p.nombre}: ${r.data.stock}`)
+      setAjuste(null); cargar()
+    } catch (e) { toast(e.message, 'error'); setAjuste(x => x && { ...x, guardando: false }) }
+  }
+
   async function eliminar(id, nombre) {
     if (!confirm(`¿Eliminar "${nombre}"?`)) return
     try { const r = await api.deleteProducto(id); toast(r?.data?.desactivado ? 'Tiene ventas asociadas: se desactivó en lugar de borrarse' : 'Producto eliminado'); cargar() }
     catch (e) { toast(e.message, 'error') }
   }
 
-  const ENCABEZADO = ['Nombre', 'Categoría', 'Descripción', 'Precio Venta', 'Precio Costo', 'Visible (Si/No)', 'Estado (Activo/Inactivo)']
+  const ENCABEZADO = ['Nombre', 'Categoría', 'Descripción', 'Precio Venta', 'Precio Costo', 'Visible (Si/No)', 'Estado (Activo/Inactivo)', 'Stock (vacío = sin control)']
 
   const COMBOS = [
     ['Combo Mojito + Helado', 'Combos', 'Mojito clásico con copa de helado de vainilla', 28000, 11000, 'Si', 'Activo'],
@@ -89,14 +150,14 @@ export default function ProductosAdmin() {
   async function descargarExcel(filas, archivo) {
     const XLSX = await import('xlsx')
     const ws = XLSX.utils.aoa_to_sheet([ENCABEZADO, ...filas])
-    ws['!cols'] = [{ wch: 36 }, { wch: 16 }, { wch: 50 }, { wch: 13 }, { wch: 13 }, { wch: 15 }, { wch: 24 }]
+    ws['!cols'] = [{ wch: 36 }, { wch: 16 }, { wch: 50 }, { wch: 13 }, { wch: 13 }, { wch: 15 }, { wch: 24 }, { wch: 26 }]
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Productos')
     XLSX.writeFile(wb, archivo)
   }
 
   const descargarPlantilla = () => descargarExcel([
-    ['Combo Ejemplo', 'Combos', 'Descripción del producto', 24000, 10000, 'Si', 'Activo'],
-    ['Cappuccino', 'Cafetería', 'Espresso con leche vaporizada', 8900, 4000, 'Si', 'Activo'],
+    ['Combo Ejemplo', 'Combos', 'Descripción del producto', 24000, 10000, 'Si', 'Activo', ''],
+    ['Cerveza Águila', 'Bebidas', 'Botella 330 ml', 5000, 2800, 'Si', 'Activo', 48],
   ], 'plantilla_productos.xlsx')
   const descargarCombos = () => descargarExcel(COMBOS, 'combos_cocteleria_helados.xlsx')
 
@@ -114,7 +175,6 @@ export default function ProductosAdmin() {
     return cols
   }
 
-  const norm = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
   // "24000", "24.000", "$ 24,000" -> 24000 ; "8900.50" -> 8900.5
   function parsePrecio(v) {
     let t = String(v || '').replace(/[^0-9.,]/g, '')
@@ -164,7 +224,10 @@ export default function ProductosAdmin() {
           }
           const visible = /^(no|0|false)$/i.test(norm(cols[5])) ? 0 : 1
           const inactivo = /^inactiv/i.test(norm(cols[6]))
-          const data = { nombre, descripcion: cols[2] || null, categoria_id, precio_venta: precio, precio_costo: parsePrecio(cols[4]), imagen_url: null, visible_formulario: visible }
+          const stockTxt = String(cols[7] ?? '').trim()
+          const controla = stockTxt !== '' && !isNaN(parseInt(stockTxt))
+          const data = { nombre, descripcion: cols[2] || null, categoria_id, precio_venta: precio, precio_costo: parsePrecio(cols[4]), imagen_url: null, visible_formulario: visible,
+            ...(controla ? { controla_stock: 1, stock: Math.max(0, parseInt(stockTxt)) } : {}) }
           const r = await api.createProducto(data)
           if (inactivo) await api.updateProducto(r.data.id, { ...data, activo: 0 })
           importados++
@@ -202,18 +265,94 @@ export default function ProductosAdmin() {
         </div>
       )}
 
+      {/* RESUMEN DE INVENTARIO (las tarjetas de alerta también filtran) */}
+      <div className="stats-grid stats-4 prod-stats">
+        <div className="stat-card">
+          <div className="stat-label">Productos</div>
+          <div className="stat-value">{productos.length}</div>
+          <div className="stat-sub">{resumen.controlados} con stock controlado</div>
+        </div>
+        <button type="button" className="stat-card stat-btn" onClick={() => setF('stock', filtros.stock === 'agotado' ? '' : 'agotado')} aria-pressed={filtros.stock === 'agotado'}>
+          <div className="stat-label">Agotados</div>
+          <div className="stat-value" style={{ color: resumen.agotados ? 'var(--rd)' : undefined }}>{resumen.agotados}</div>
+          <div className="stat-sub">Ver solo agotados</div>
+        </button>
+        <button type="button" className="stat-card stat-btn" onClick={() => setF('stock', filtros.stock === 'bajo' ? '' : 'bajo')} aria-pressed={filtros.stock === 'bajo'}>
+          <div className="stat-label">Stock bajo</div>
+          <div className="stat-value" style={{ color: resumen.bajos ? '#b45309' : undefined }}>{resumen.bajos}</div>
+          <div className="stat-sub">En o bajo el mínimo</div>
+        </button>
+        <div className="stat-card">
+          <div className="stat-label">Unidades vendidas</div>
+          <div className="stat-value">{resumen.vendidos}</div>
+          <div className="stat-sub">Sin contar cancelados</div>
+        </div>
+      </div>
+
+      {/* FILTROS DINÁMICOS */}
+      <div className="filters-bar">
+        <div className="filter-group fb-wide" style={{ flex: '1 1 220px' }}>
+          <label className="filter-label" htmlFor="f-q">Buscar</label>
+          <input id="f-q" className="filter-input" type="search" placeholder="Nombre, descripción o categoría…" value={filtros.q} onChange={e => setF('q', e.target.value)} />
+        </div>
+        <div className="filter-group">
+          <label className="filter-label" htmlFor="f-cat">Categoría</label>
+          <select id="f-cat" className="filter-input" value={filtros.cat} onChange={e => setF('cat', e.target.value)}>
+            <option value="">Todas</option>
+            {categorias.map(c => <option key={c.id} value={String(c.id)}>{c.nombre}</option>)}
+            <option value="sin">Sin categoría</option>
+          </select>
+        </div>
+        <div className="filter-group">
+          <label className="filter-label" htmlFor="f-stock">Stock</label>
+          <select id="f-stock" className="filter-input" value={filtros.stock} onChange={e => setF('stock', e.target.value)}>
+            <option value="">Todos</option>
+            <option value="ok">Disponible</option>
+            <option value="bajo">Stock bajo</option>
+            <option value="agotado">Agotado</option>
+            <option value="sin_control">Sin control</option>
+          </select>
+        </div>
+        <div className="filter-group">
+          <label className="filter-label" htmlFor="f-estado">Estado</label>
+          <select id="f-estado" className="filter-input" value={filtros.estado} onChange={e => setF('estado', e.target.value)}>
+            <option value="">Todos</option>
+            <option value="1">Activos</option>
+            <option value="0">Inactivos</option>
+          </select>
+        </div>
+        <div className="filter-group">
+          <label className="filter-label" htmlFor="f-vis">Visible</label>
+          <select id="f-vis" className="filter-input" value={filtros.visible} onChange={e => setF('visible', e.target.value)}>
+            <option value="">Todos</option>
+            <option value="1">Sí</option>
+            <option value="0">No</option>
+          </select>
+        </div>
+        <div className="filter-group">
+          <label className="filter-label" htmlFor="f-ord">Ordenar por</label>
+          <select id="f-ord" className="filter-input" value={filtros.orden} onChange={e => setF('orden', e.target.value)}>
+            <option value="nombre">Nombre</option>
+            <option value="vendidos">Más vendidos</option>
+            <option value="stock">Menor stock</option>
+            <option value="precio">Mayor precio</option>
+          </select>
+        </div>
+        {hayFiltros && <button className="btn btn-ghost btn-sm" onClick={() => setFiltros(FILTROS0)}>Limpiar</button>}
+      </div>
+
       <div className="card">
-        <div className="card-header"><h3>Catálogo activo</h3></div>
+        <div className="card-header"><h3>Catálogo</h3><span style={{ fontSize: 12, color: 'var(--text3)' }}>{lista.length === productos.length ? `${productos.length} productos` : `${lista.length} de ${productos.length} productos`}</span></div>
         {loading ? (
           <div style={{ padding: 48, textAlign: 'center' }}><div className="spinner" style={{ margin: '0 auto' }} /></div>
         ) : (
           <div className="table-wrap">
             <table className="tbl-prod">
               <thead>
-                <tr><th>Imagen</th><th>Producto</th><th>Categoría</th><th>Precio venta</th><th>Precio costo</th><th>Descripción</th><th>Visible</th><th>Estado</th><th>Acciones</th></tr>
+                <tr><th>Imagen</th><th>Producto</th><th>Categoría</th><th>Precio venta</th><th>Precio costo</th><th>Stock</th><th>Vendidos</th><th>Descripción</th><th>Visible</th><th>Estado</th><th>Acciones</th></tr>
               </thead>
               <tbody>
-                {productos.map(p => (
+                {lista.map(p => (
                   <tr key={p.id}>
                     <td>
                       {p.imagen_url
@@ -225,18 +364,28 @@ export default function ProductosAdmin() {
                     <td style={{ fontSize: 12, color: 'var(--text3)' }}>{p.categoria_nombre || '—'}</td>
                     <td><strong style={{ color: 'var(--primary)' }}>{fmt(p.precio_venta)}</strong></td>
                     <td style={{ color: 'var(--text3)', fontSize: 12 }}>{fmt(p.precio_costo)}</td>
-                    <td style={{ fontSize: 11.5, color: 'var(--text3)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.descripcion || '—'}</td>
+                    <td>
+                      {(() => {
+                        const e = estadoStock(p)
+                        if (e === 'sin_control') return <span style={{ fontSize: 11.5, color: 'var(--text3)' }}>Sin control</span>
+                        if (e === 'agotado') return <span className="badge badge-red">Agotado</span>
+                        return <span className={`badge ${e === 'bajo' ? 'badge-amber' : 'badge-green'}`} title={e === 'bajo' ? `En o bajo el mínimo (${p.stock_minimo})` : 'Disponible'}>{p.stock}{e === 'bajo' ? ' · bajo' : ''}</span>
+                      })()}
+                    </td>
+                    <td><strong>{Number(p.vendidos || 0)}</strong></td>
+                    <td style={{ fontSize: 11.5, color: 'var(--text3)', maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.descripcion || '—'}</td>
                     <td><span className={`badge ${p.visible_formulario ? 'badge-green' : 'badge-gray'}`}>{p.visible_formulario ? 'Sí' : 'No'}</span></td>
                     <td><span className={`badge ${p.activo ? 'badge-green' : 'badge-red'}`}>{p.activo ? 'Activo' : 'Inactivo'}</span></td>
                     <td>
                       <div style={{ display: 'flex', gap: 4 }}>
                         <button className="btn btn-ghost btn-xs" onClick={() => abrirEditar(p)}>Editar</button>
+                        {p.controla_stock ? <button className="btn btn-ghost btn-xs" onClick={() => abrirAjuste(p)}>Stock</button> : null}
                         <button className="btn btn-danger btn-xs" onClick={() => eliminar(p.id, p.nombre)}>Eliminar</button>
                       </div>
                     </td>
                   </tr>
                 ))}
-                {!productos.length && <tr><td colSpan="9" style={{ textAlign: 'center', padding: 28, color: 'var(--text3)' }}>Sin productos</td></tr>}
+                {!lista.length && <tr><td colSpan="11" style={{ textAlign: 'center', padding: 28, color: 'var(--text3)' }}>{productos.length ? 'Ningún producto coincide con los filtros' : 'Sin productos'}</td></tr>}
               </tbody>
             </table>
           </div>
@@ -281,6 +430,26 @@ export default function ProductosAdmin() {
                 <input className="input" value={form.imagen_url} onChange={e => setForm(f => ({ ...f, imagen_url: e.target.value }))} placeholder="O si prefieres, pega una URL (https://...)" />
                 {form.imagen_url && <img src={form.imagen_url} alt="" style={{ marginTop: 8, height: 80, borderRadius: 7, objectFit: 'cover', border: '1px solid var(--border)' }} />}
               </div>
+              <div className="form-group" style={{ gridColumn: '1/-1', borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 600, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={!!form.controla_stock} onChange={e => setForm(f => ({ ...f, controla_stock: e.target.checked ? 1 : 0 }))} />
+                  Controlar stock de este producto
+                </label>
+                <p style={{ fontSize: 11.5, color: 'var(--text3)', margin: '4px 0 0' }}>Se descuenta solo con cada pedido y se devuelve si se cancela.</p>
+              </div>
+              {!!form.controla_stock && (
+                <>
+                  <div className="form-group">
+                    <label className="label">{editId ? 'Stock actual' : 'Stock inicial'}</label>
+                    <input className="input" type="number" min="0" value={form.stock} disabled={!!editId} onChange={e => setForm(f => ({ ...f, stock: e.target.value }))} placeholder="0" />
+                    {editId && <p style={{ fontSize: 11, color: 'var(--text3)', margin: '4px 0 0' }}>Para cambiarlo usa el botón "Stock" de la lista.</p>}
+                  </div>
+                  <div className="form-group">
+                    <label className="label">Avisar cuando queden</label>
+                    <input className="input" type="number" min="0" value={form.stock_minimo} onChange={e => setForm(f => ({ ...f, stock_minimo: e.target.value }))} placeholder="5" />
+                  </div>
+                </>
+              )}
               <div className="form-group">
                 <label className="label">Estado</label>
                 <select className="select" value={form.activo} onChange={e => setForm(f => ({ ...f, activo: parseInt(e.target.value) }))}>
@@ -299,6 +468,56 @@ export default function ProductosAdmin() {
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setModal(false)}>Cancelar</button>
               <button className="btn btn-primary" onClick={guardar} disabled={guardando}>{guardando ? 'Guardando...' : 'Guardar producto'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AJUSTE DE STOCK */}
+      {ajuste && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setAjuste(null)}>
+          <div className="modal-box" style={{ maxWidth: 480 }}>
+            <h3>Stock · {ajuste.p.nombre}</h3>
+            <div style={{ display: 'flex', gap: 18, margin: '4px 0 14px', fontSize: 13, color: 'var(--text2)' }}>
+              <div>Disponible<div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text)' }}>{ajuste.p.stock}</div></div>
+              <div>Vendidos<div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text)' }}>{Number(ajuste.p.vendidos || 0)}</div></div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                <label className="label" htmlFor="aj-tipo">Qué quieres hacer</label>
+                <select id="aj-tipo" className="select" value={ajuste.tipo} onChange={e => setAjuste(a => ({ ...a, tipo: e.target.value }))}>
+                  <option value="entrada">Entrada: llegó mercancía (suma)</option>
+                  <option value="salida">Salida: merma o consumo (resta)</option>
+                  <option value="conteo">Conteo: fijar la cantidad real</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="label" htmlFor="aj-cant">{ajuste.tipo === 'conteo' ? 'Cantidad real' : 'Cantidad'}</label>
+                <input id="aj-cant" className="input" type="number" min="0" value={ajuste.cantidad} onChange={e => setAjuste(a => ({ ...a, cantidad: e.target.value }))} autoFocus />
+              </div>
+              <div className="form-group">
+                <label className="label" htmlFor="aj-nota">Nota (opcional)</label>
+                <input id="aj-nota" className="input" value={ajuste.nota} onChange={e => setAjuste(a => ({ ...a, nota: e.target.value }))} placeholder="Compra proveedor…" />
+              </div>
+            </div>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 0.4, margin: '4px 0 6px' }}>Últimos movimientos</div>
+            <div style={{ maxHeight: 170, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+              {ajuste.movs === null ? <div style={{ padding: 14, textAlign: 'center' }}><div className="spinner" style={{ margin: '0 auto' }} /></div>
+                : !ajuste.movs.length ? <div style={{ padding: 14, textAlign: 'center', fontSize: 12, color: 'var(--text3)' }}>Aún no hay movimientos</div>
+                : ajuste.movs.map(m => (
+                  <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 12px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                    <span style={{ minWidth: 0 }}>
+                      <strong>{TIPO_MOV[m.tipo] || m.tipo}</strong>{m.pedido_numero ? ` · pedido #${m.pedido_numero}` : ''}
+                      <span style={{ color: 'var(--text3)' }}> · {new Date(m.created_at).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                      {m.nota ? <span style={{ color: 'var(--text3)' }}> · {m.nota}</span> : null}
+                    </span>
+                    <span style={{ whiteSpace: 'nowrap', fontWeight: 700, color: m.cantidad < 0 ? 'var(--rd)' : 'var(--vd)' }}>{m.cantidad > 0 ? '+' : ''}{m.cantidad} <span style={{ color: 'var(--text3)', fontWeight: 500 }}>→ {m.stock_resultante}</span></span>
+                  </div>
+                ))}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setAjuste(null)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={guardarAjuste} disabled={ajuste.guardando}>{ajuste.guardando ? 'Guardando...' : 'Guardar ajuste'}</button>
             </div>
           </div>
         </div>

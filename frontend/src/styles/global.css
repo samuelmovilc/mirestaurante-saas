@@ -155,6 +155,7 @@ body {
 .badge-red    { background: var(--rd-dim); color: var(--rd); border: 1px solid rgba(220,38,38,0.2); }
 .badge-primary { background: var(--primary-dim); color: var(--primary); border: 1px solid rgba(33,28,184,0.2); }
 .badge-gray   { background: var(--bg4); color: var(--text2); border: 1px solid var(--border2); }
+.badge-amber  { background: #fef3c7; color: #b45309; border: 1px solid rgba(180,83,9,0.25); }
 .badge-blue   { background: var(--az-dim); color: var(--az); border: 1px solid rgba(37,99,235,0.2); }
 
 /* ─── TABLA ─────────────────────────────────────────── */
@@ -223,6 +224,10 @@ tbody tr:hover td { background: var(--primary-dim); }
 .stat-sub   { font-size: 11.5px; color: var(--text2); margin-top: 4px; }
 .stat-sub.vd { color: var(--vd); }
 .stat-sub.rd { color: var(--rd); }
+/* tarjetas de resumen que también funcionan como filtro */
+.stat-btn { font: inherit; text-align: left; cursor: pointer; width: 100%; color: inherit; }
+.stat-btn:hover { border-color: var(--primary); }
+.stat-btn[aria-pressed="true"] { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-dim); }
 
 /* ─── TOAST ─────────────────────────────────────────── */
 .toast-container {
@@ -644,14 +649,22 @@ tbody tr:hover td { background: var(--primary-dim); }
   .tbl-pedidos td:nth-child(11) > div { flex-wrap: wrap; }
 
   /* Productos: [img] nombre · precio / categoría · estado / acciones */
+  /* Productos (11 col.): img · producto · categoría · venta · costo · stock · vendidos · descripción · visible · estado · acciones */
   .tbl-prod tr { grid-template-columns: 48px 1fr auto; }
-  .tbl-prod td:nth-child(1) { grid-column: 1; grid-row: 1 / span 2; }
+  .tbl-prod td:nth-child(1) { grid-column: 1; grid-row: 1 / span 3; }
   .tbl-prod td:nth-child(2) { grid-column: 2; grid-row: 1; line-height: 1.25; }
   .tbl-prod td:nth-child(4) { grid-column: 3; grid-row: 1; justify-self: end; }
   .tbl-prod td:nth-child(3) { grid-column: 2; grid-row: 2; }
-  .tbl-prod td:nth-child(8) { grid-column: 3; grid-row: 2; justify-self: end; }
-  .tbl-prod td:nth-child(9) { grid-column: 1 / -1; grid-row: 3; margin-top: 4px; }
-  .tbl-prod td:nth-child(5), .tbl-prod td:nth-child(6), .tbl-prod td:nth-child(7) { display: none; }
+  .tbl-prod td:nth-child(10) { grid-column: 3; grid-row: 2; justify-self: end; }
+  .tbl-prod td:nth-child(6) { grid-column: 2; grid-row: 3; }
+  .tbl-prod td:nth-child(7) { grid-column: 3; grid-row: 3; justify-self: end; font-size: 12px; }
+  .tbl-prod td:nth-child(7)::before { content: 'Vendidos '; color: var(--text3); font-weight: 500; }
+  .tbl-prod td:nth-child(11) { grid-column: 1 / -1; grid-row: 4; margin-top: 4px; }
+  .tbl-prod td:nth-child(5), .tbl-prod td:nth-child(8), .tbl-prod td:nth-child(9) { display: none; }
+  .fb-wide { grid-column: 1 / -1; }
+  .prod-stats .stat-sub { display: none; }
+  .prod-stats .stat-card { padding: 10px 14px; }
+  .prod-stats .stat-label { margin-bottom: 4px; }
 
   /* Costeo: el nombre del ingrediente va en su propia línea */
   .cos-ing-row { grid-template-columns: 1fr 84px 1fr 36px; }

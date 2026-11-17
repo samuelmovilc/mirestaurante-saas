@@ -1,5 +1,6 @@
 const express = require('express')
 const { authMiddleware } = require('../middleware/auth')
+const { descontar, devolverPedido } = require('../stock')
 const router = express.Router()
 
 router.get('/', async (req, res) => {
@@ -68,13 +69,14 @@ router.post('/', async (req, res) => {
         )
         total += (item.cantidad * item.precio_unitario)
       }
+      await descontar(conn, items, pedidoId)
     }
 
     await conn.commit()
     res.status(201).json({ success: true, data: { id: pedidoId, numero_pedido: numero, total } })
   } catch (err) {
     await conn.rollback()
-    res.status(500).json({ success: false, error: { message: err.message } })
+    res.status(err.status || 500).json({ success: false, error: { message: err.message } })
   } finally { conn.release() }
 })
 
@@ -89,6 +91,10 @@ router.put('/:id', authMiddleware, async (req, res) => {
       [cliente_nombre, mesa_id || null, vendedor_nombre, tipo, domicilio || 0, observaciones, req.params.id]
     )
     if (Array.isArray(items)) {
+      // Un pedido cancelado no tiene stock descontado; en los demás se devuelve lo anterior y se descuenta lo nuevo.
+      const [[ped]] = await conn.query('SELECT estado FROM pedidos WHERE id = ?', [req.params.id])
+      const activo = ped && ped.estado !== 'cancelado'
+      if (activo) await devolverPedido(conn, req.params.id, 'ajuste', 'Pedido editado')
       await conn.query('DELETE FROM pedido_detalle WHERE pedido_id = ?', [req.params.id])
       for (const item of items) {
         await conn.query(
@@ -96,23 +102,39 @@ router.put('/:id', authMiddleware, async (req, res) => {
           [req.params.id, item.producto_id || null, item.nombre_producto, item.cantidad, item.precio_unitario, item.precio_costo || 0]
         )
       }
+      if (activo) await descontar(conn, items, Number(req.params.id), 'Pedido editado')
     }
     await conn.commit()
     res.json({ success: true })
   } catch (err) {
     await conn.rollback()
-    res.status(500).json({ success: false, error: { message: err.message } })
+    res.status(err.status || 500).json({ success: false, error: { message: err.message } })
   } finally { conn.release() }
 })
 
 router.patch('/:id/estado', authMiddleware, async (req, res) => {
+  const conn = await req.tenantPool.getConnection()
   try {
     const { estado } = req.body
     const estados = ['pendiente','en_preparacion','listo','entregado','cancelado']
     if (!estados.includes(estado)) return res.status(400).json({ success: false, error: { message: 'Estado inválido' } })
-    await req.tenantPool.query('UPDATE pedidos SET estado = ? WHERE id = ?', [estado, req.params.id])
+    await conn.beginTransaction()
+    const [[ped]] = await conn.query('SELECT estado FROM pedidos WHERE id = ? FOR UPDATE', [req.params.id])
+    if (!ped) { await conn.rollback(); return res.status(404).json({ success: false, error: { message: 'Pedido no encontrado' } }) }
+    // Cancelar devuelve el stock; reactivar un pedido cancelado lo vuelve a descontar.
+    if (estado === 'cancelado' && ped.estado !== 'cancelado') {
+      await devolverPedido(conn, req.params.id, 'devolucion', 'Pedido cancelado')
+    } else if (ped.estado === 'cancelado' && estado !== 'cancelado') {
+      const [det] = await conn.query('SELECT producto_id, cantidad FROM pedido_detalle WHERE pedido_id = ?', [req.params.id])
+      await descontar(conn, det, Number(req.params.id), 'Pedido reactivado')
+    }
+    await conn.query('UPDATE pedidos SET estado = ? WHERE id = ?', [estado, req.params.id])
+    await conn.commit()
     res.json({ success: true })
-  } catch (err) { res.status(500).json({ success: false, error: { message: err.message } }) }
+  } catch (err) {
+    await conn.rollback()
+    res.status(err.status || 500).json({ success: false, error: { message: err.message } })
+  } finally { conn.release() }
 })
 
 module.exports = router

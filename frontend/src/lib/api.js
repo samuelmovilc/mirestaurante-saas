@@ -123,6 +123,8 @@ export const api = {
   createProducto:  (data) => request('/api/productos', { method: 'POST', body: JSON.stringify(data) }),
   updateProducto:  (id, data) => request(`/api/productos/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteProducto:  (id)   => request(`/api/productos/${id}`, { method: 'DELETE' }),
+  ajustarStock:    (id, data) => request(`/api/productos/${id}/stock`, { method: 'POST', body: JSON.stringify(data) }),
+  movimientosStock: (id)  => request(`/api/productos/${id}/movimientos`),
   importProductos: (data) => request('/api/productos/importar', { method: 'POST', body: JSON.stringify({ productos: data }) }),
   uploadImage:     async (file) => {
     if (!file || !/^image\//.test(file.type)) throw new Error('Selecciona un archivo de imagen (JPG, PNG o WEBP)')
