@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { api } from '../lib/api'
+import { getUsuarioGuardado, guardarSesion, borrarSesion } from '../lib/session'
 
 const AuthCtx = createContext(null)
 
@@ -8,25 +9,20 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    const stored = localStorage.getItem('usuario')
-    if (token && stored) {
-      try { setUsuario(JSON.parse(stored)) } catch { logout() }
-    }
+    const guardado = getUsuarioGuardado() // sesión de ESTE restaurante (nunca la de otro)
+    if (guardado) setUsuario(guardado)
     setLoading(false)
   }, [])
 
   async function login(username, password) {
     const res = await api.login(username, password)
-    localStorage.setItem('token', res.data.token)
-    localStorage.setItem('usuario', JSON.stringify(res.data.usuario))
+    guardarSesion(res.data.token, res.data.usuario)
     setUsuario(res.data.usuario)
     return res.data.usuario
   }
 
   function logout() {
-    localStorage.removeItem('token')
-    localStorage.removeItem('usuario')
+    borrarSesion()
     setUsuario(null)
   }
 

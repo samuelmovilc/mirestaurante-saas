@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { api, fmt } from '../lib/api'
 import { useToast } from '../hooks/useToast'
+import { getTenant } from '../lib/session'
 
 export default function PedidoPage() {
   const { toast, ToastContainer } = useToast()
@@ -146,6 +147,7 @@ export default function PedidoPage() {
       <div className="pedido-main">
         <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>Tomar pedido</h2>
         <p style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 18 }}>Registra los datos y selecciona los productos.</p>
+        <p style={{ fontSize: 12, marginTop: -10, marginBottom: 16 }}>Restaurante: <b>{config.nombre_negocio || getTenant()}</b> <span style={{ color: 'var(--text3)' }}>({getTenant()})</span></p>
 
         {/* DATOS */}
         <div className="card" style={{ marginBottom: 16 }}>

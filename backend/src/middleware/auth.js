@@ -14,6 +14,14 @@ function authMiddleware(req, res, next) {
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET)
+    // El token pertenece a UN restaurante. Si llega con el X-Tenant de otro, se rechaza:
+    // así un usuario de un restaurante nunca puede leer ni escribir datos de otro.
+    if (req.tenant && payload.tenant !== req.tenant.slug) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'TENANT_MISMATCH', message: 'Esta sesión pertenece a otro restaurante. Inicia sesión de nuevo.' }
+      })
+    }
     req.usuario   = payload
     next()
   } catch {

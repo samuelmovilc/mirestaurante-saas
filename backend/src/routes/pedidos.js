@@ -3,7 +3,8 @@ const { authMiddleware } = require('../middleware/auth')
 const { descontar, devolverPedido } = require('../stock')
 const router = express.Router()
 
-router.get('/', async (req, res) => {
+// Leer pedidos (datos de clientes) exige sesión; crear un pedido (POST) sigue siendo público para el formulario.
+router.get('/', authMiddleware, async (req, res) => {
   try {
     const { estado, fecha } = req.query
     let sql = `SELECT p.*,
@@ -24,7 +25,7 @@ router.get('/', async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: { message: err.message } }) }
 })
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const [[p]] = await req.tenantPool.query(
       `SELECT p.*, p.numero AS numero_pedido, p.cliente_nombre AS nombre_cliente, p.tipo AS tipo_pedido

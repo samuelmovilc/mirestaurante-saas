@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { getTenant } from './lib/session'
 
 import LoginPage       from './pages/LoginPage'
 import PedidoPage      from './pages/PedidoPage'
@@ -13,9 +14,8 @@ import ConfigAdmin     from './pages/admin/ConfigAdmin'
 
 
 function getTenantParam() {
-  const p = new URLSearchParams(window.location.search)
-  const t = p.get('tenant') || localStorage.getItem('tenant') || ''
-  return t ? `?tenant=${t}` : ''
+  const t = getTenant()
+  return t ? `?tenant=${encodeURIComponent(t)}` : ''
 }
 
 function PrivateRoute({ children }) {

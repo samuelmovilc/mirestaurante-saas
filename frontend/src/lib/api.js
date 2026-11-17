@@ -1,33 +1,7 @@
+import { getTenant, getToken, borrarSesion } from './session'
+
 // Vercel reenvía /api/* → http://89.117.56.39:3010/api/* (server-to-server, sin Mixed Content)
 const BASE = ''
-
-function getToken() {
-  return localStorage.getItem('token')
-}
-
-// Al cargar la app: si la URL trae un restaurante distinto al guardado, se descarta la sesión
-// del restaurante anterior (si no, el token/tenant viejos se mezclan con el nuevo).
-;(function syncTenantFromUrl() {
-  try {
-    const fromUrl = new URLSearchParams(window.location.search).get('tenant')
-    if (fromUrl && fromUrl !== localStorage.getItem('tenant')) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('usuario')
-      localStorage.setItem('tenant', fromUrl)
-    }
-  } catch {}
-})()
-
-// Lee el tenant del query param ?tenant=xxx o de localStorage
-function getTenant() {
-  const params = new URLSearchParams(window.location.search)
-  const fromUrl = params.get('tenant')
-  if (fromUrl) {
-    localStorage.setItem('tenant', fromUrl)
-    return fromUrl
-  }
-  return localStorage.getItem('tenant') || ''
-}
 
 // Reduce la foto en el navegador (máx 1280 px, JPEG) para que suba rápido y pese poco
 async function reducirImagen(file, maxLado = 1280, calidad = 0.82) {
@@ -63,13 +37,19 @@ async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, { ...options, headers })
 
   if (res.status === 401 && !path.includes('/login')) {
-    localStorage.removeItem('token')
-    localStorage.removeItem('usuario')
+    borrarSesion()
     window.location.href = tenant ? `/login?tenant=${encodeURIComponent(tenant)}` : '/login'
     throw new Error('Sesión expirada')
   }
 
   const data = await res.json()
+
+  // La sesión guardada era de otro restaurante: se descarta y se pide iniciar sesión en este.
+  if (res.status === 403 && data?.error?.code === 'TENANT_MISMATCH' && !path.includes('/login')) {
+    borrarSesion()
+    window.location.href = tenant ? `/login?tenant=${encodeURIComponent(tenant)}` : '/login'
+    throw new Error(data.error.message)
+  }
 
   if (!data.success) {
     const err = new Error(data.error?.message || 'Error del servidor')
