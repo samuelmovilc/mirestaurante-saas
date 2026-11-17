@@ -132,33 +132,59 @@ export default function ProductosAdmin() {
     catch (e) { toast(e.message, 'error') }
   }
 
-  const ENCABEZADO = ['Nombre', 'Categoría', 'Descripción', 'Precio Venta', 'Precio Costo', 'Visible (Si/No)', 'Estado (Activo/Inactivo)', 'Stock (vacío = sin control)']
+  const ENCABEZADO = ['Nombre', 'Categoría', 'Descripción', 'Precio Venta', 'Precio Costo', 'Visible (Si/No)', 'Estado (Activo/Inactivo)', 'Stock (vacío = sin control)', 'Avisar cuando queden']
+  const ANCHOS = [36, 16, 50, 13, 13, 15, 24, 26, 20]
 
-  const COMBOS = [
-    ['Combo Mojito + Helado', 'Combos', 'Mojito clásico con copa de helado de vainilla', 28000, 11000, 'Si', 'Activo'],
-    ['Combo Piña Colada + Helado de Coco', 'Combos', 'Piña colada con helado de coco', 30000, 12000, 'Si', 'Activo'],
-    ['Combo Margarita + Helado de Limón', 'Combos', 'Margarita de limón con helado de limón', 29000, 11500, 'Si', 'Activo'],
-    ['Combo Daiquirí Fresa + Helado', 'Combos', 'Daiquirí de fresa con helado de fresa', 28000, 11000, 'Si', 'Activo'],
-    ['Combo Caipirinha + Helado Maracuyá', 'Combos', 'Caipirinha con helado de maracuyá', 29000, 11500, 'Si', 'Activo'],
-    ['Combo Sangría + Helado', 'Combos', 'Copa de sangría con helado de vainilla', 32000, 13000, 'Si', 'Activo'],
-    ['Combo Cóctel Sin Alcohol + Helado', 'Combos', 'Cóctel sin alcohol con bola de helado', 22000, 8500, 'Si', 'Activo'],
-    ['Combo Pareja 2 Cócteles + 2 Helados', 'Combos', 'Dos cócteles a elección con dos copas de helado', 54000, 22000, 'Si', 'Activo'],
-    ['Combo Mojito Maracuyá + Brownie', 'Combos', 'Mojito de maracuyá con brownie y helado', 33000, 13500, 'Si', 'Activo'],
-    ['Combo Cóctel Frutal + Malteada', 'Combos', 'Cóctel frutal con malteada de helado', 31000, 12500, 'Si', 'Activo'],
+  // [nombre, categoría, descripción, venta, costo]
+  const COMBOS_BASE = [
+    ['Combo Mojito + Helado', 'Combos', 'Mojito clásico con copa de helado de vainilla', 28000, 11000],
+    ['Combo Piña Colada + Helado de Coco', 'Combos', 'Piña colada con helado de coco', 30000, 12000],
+    ['Combo Margarita + Helado de Limón', 'Combos', 'Margarita de limón con helado de limón', 29000, 11500],
+    ['Combo Daiquirí Fresa + Helado', 'Combos', 'Daiquirí de fresa con helado de fresa', 28000, 11000],
+    ['Combo Caipirinha + Helado Maracuyá', 'Combos', 'Caipirinha con helado de maracuyá', 29000, 11500],
+    ['Combo Sangría + Helado', 'Combos', 'Copa de sangría con helado de vainilla', 32000, 13000],
+    ['Combo Cóctel Sin Alcohol + Helado', 'Combos', 'Cóctel sin alcohol con bola de helado', 22000, 8500],
+    ['Combo Pareja 2 Cócteles + 2 Helados', 'Combos', 'Dos cócteles a elección con dos copas de helado', 54000, 22000],
+    ['Combo Mojito Maracuyá + Brownie', 'Combos', 'Mojito de maracuyá con brownie y helado', 33000, 13500],
+    ['Combo Cóctel Frutal + Malteada', 'Combos', 'Cóctel frutal con malteada de helado', 31000, 12500],
+  ]
+  const COMBOS = COMBOS_BASE.map(r => [...r, 'Si', 'Activo', '', ''])
+
+  const INSTRUCCIONES = [
+    ['CÓMO LLENAR LA PLANTILLA'],
+    [''],
+    ['Escribe un producto por fila en la hoja "Productos" y súbela con el botón "Carga masiva (Excel)".'],
+    [''],
+    ['Nombre: obligatorio. Si ya existe un producto con ese nombre, esa fila se omite (no se duplica).'],
+    ['Categoría: si no existe, se crea sola.'],
+    ['Descripción: opcional.'],
+    ['Precio Venta: obligatorio. Solo el número (24000). También sirve 24.000 o $ 24,000.'],
+    ['Precio Costo: opcional. Se usa para el costeo.'],
+    ['Visible (Si/No): "No" lo oculta del formulario de pedidos. Vacío = Si.'],
+    ['Estado (Activo/Inactivo): vacío = Activo.'],
+    ['Stock: déjalo vacío si NO quieres controlar inventario. Si pones un número, el stock se descuenta solo con cada pedido.'],
+    ['Avisar cuando queden: solo con Stock. Cuando quedan esas unidades o menos, el producto sale como "Stock bajo".'],
+    [''],
+    ['Las filas cuyo nombre empieza por "(Ejemplo)" se ignoran: puedes dejarlas o borrarlas.'],
+    ['Puedes cambiar el orden de las columnas o quitar las opcionales, pero no cambies los títulos.'],
   ]
 
-  async function descargarExcel(filas, archivo) {
+  async function descargarExcel(filas, archivo, conInstrucciones = false) {
     const XLSX = await import('xlsx')
     const ws = XLSX.utils.aoa_to_sheet([ENCABEZADO, ...filas])
-    ws['!cols'] = [{ wch: 36 }, { wch: 16 }, { wch: 50 }, { wch: 13 }, { wch: 13 }, { wch: 15 }, { wch: 24 }, { wch: 26 }]
+    ws['!cols'] = ANCHOS.map(wch => ({ wch }))
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Productos')
+    if (conInstrucciones) {
+      const wi = XLSX.utils.aoa_to_sheet(INSTRUCCIONES); wi['!cols'] = [{ wch: 120 }]
+      XLSX.utils.book_append_sheet(wb, wi, 'Instrucciones')
+    }
     XLSX.writeFile(wb, archivo)
   }
 
   const descargarPlantilla = () => descargarExcel([
-    ['Combo Ejemplo', 'Combos', 'Descripción del producto', 24000, 10000, 'Si', 'Activo', ''],
-    ['Cerveza Águila', 'Bebidas', 'Botella 330 ml', 5000, 2800, 'Si', 'Activo', 48],
-  ], 'plantilla_productos.xlsx')
+    ['(Ejemplo) Cerveza Águila', 'Bebidas', 'Botella 330 ml', 5000, 2800, 'Si', 'Activo', 48, 10],
+    ['(Ejemplo) Combo Pollo', 'Combos', 'Cuarto de pollo con papas', 24000, 10000, 'Si', 'Activo', '', ''],
+  ], 'plantilla_productos.xlsx', true)
   const descargarCombos = () => descargarExcel(COMBOS, 'combos_cocteleria_helados.xlsx')
 
   // Parser CSV que respeta campos entre comillas. Acepta coma o punto y coma (Excel en español guarda con ";").
@@ -200,41 +226,61 @@ export default function ProductosAdmin() {
     return lines.map(l => parseCSVLine(l, sep))
   }
 
+  // Busca cada columna por su título (así el orden no importa). Si no reconoce los títulos, usa el orden de la plantilla.
+  const CAMPOS = [['nombre', ['nombre', 'producto']], ['categoria', ['categoria']], ['descripcion', ['descripcion']], ['costo', ['costo']],
+                  ['venta', ['venta', 'precio']], ['visible', ['visible']], ['estado', ['estado']], ['stock', ['stock']], ['minimo', ['avisar', 'minimo']]]
+  const ORDEN_PLANTILLA = { nombre: 0, categoria: 1, descripcion: 2, venta: 3, costo: 4, visible: 5, estado: 6, stock: 7, minimo: 8 }
+  function mapearColumnas(encabezado) {
+    const t = encabezado.map(norm), usadas = new Set(), idx = {}
+    for (const [campo, claves] of CAMPOS) {
+      const i = t.findIndex((x, j) => !usadas.has(j) && claves.some(k => x.includes(k)))
+      idx[campo] = i; if (i >= 0) usadas.add(i)
+    }
+    return (idx.nombre < 0 || idx.venta < 0) ? ORDEN_PLANTILLA : idx
+  }
+
   async function importarArchivo(e) {
     const file = e.target.files[0]; e.target.value = ''
     if (!file) return
     try {
       const filas = await leerFilas(file)
       if (filas.length < 2) return toast('Archivo vacío', 'error')
+      const idx = mapearColumnas(filas[0])
       // Categorías existentes; las que no existan se crean con el nombre del archivo.
       const cats = {}
       ;((await api.getCategorias()).data || []).forEach(c => { cats[norm(c.nombre)] = c.id })
-      let importados = 0; const errores = []
+      // Nombres que ya existen: esas filas se omiten para no duplicar.
+      const existentes = new Set(((await api.getProductos()).data || []).map(p => norm(p.nombre)))
+      let importados = 0, omitidos = 0; const errores = []
       for (let i = 1; i < filas.length; i++) {
         const cols = filas[i]
-        const nombre = cols[0]
-        const precio = parsePrecio(cols[3])
-        if (!nombre || !precio) { errores.push(`Fila ${i + 1}: falta nombre o precio`); continue }
+        const c = k => (idx[k] >= 0 && idx[k] !== undefined) ? String(cols[idx[k]] ?? '').trim() : ''
+        const nombre = c('nombre')
+        if (!nombre || /^\(ejemplo\)/i.test(nombre)) continue
+        const precio = parsePrecio(c('venta'))
+        if (!precio) { errores.push(`Fila ${i + 1} (${nombre}): falta el precio de venta`); continue }
+        if (existentes.has(norm(nombre))) { omitidos++; continue }
         try {
           let categoria_id = null
-          const catNom = (cols[1] || '').trim()
+          const catNom = c('categoria')
           if (catNom) {
             if (!cats[norm(catNom)]) { const r = await api.createCategoria({ nombre: catNom, activo: 1 }); cats[norm(catNom)] = r.data.id }
             categoria_id = cats[norm(catNom)]
           }
-          const visible = /^(no|0|false)$/i.test(norm(cols[5])) ? 0 : 1
-          const inactivo = /^inactiv/i.test(norm(cols[6]))
-          const stockTxt = String(cols[7] ?? '').trim()
+          const visible = /^(no|0|false)$/i.test(norm(c('visible'))) ? 0 : 1
+          const inactivo = /^inactiv/i.test(norm(c('estado')))
+          const stockTxt = c('stock')
           const controla = stockTxt !== '' && !isNaN(parseInt(stockTxt))
-          const data = { nombre, descripcion: cols[2] || null, categoria_id, precio_venta: precio, precio_costo: parsePrecio(cols[4]), imagen_url: null, visible_formulario: visible,
-            ...(controla ? { controla_stock: 1, stock: Math.max(0, parseInt(stockTxt)) } : {}) }
+          const data = { nombre, descripcion: c('descripcion') || null, categoria_id, precio_venta: precio, precio_costo: parsePrecio(c('costo')), imagen_url: null, visible_formulario: visible,
+            ...(controla ? { controla_stock: 1, stock: Math.max(0, parseInt(stockTxt)), stock_minimo: Math.max(0, parseInt(c('minimo')) || 0) } : {}) }
           const r = await api.createProducto(data)
           if (inactivo) await api.updateProducto(r.data.id, { ...data, activo: 0 })
+          existentes.add(norm(nombre))
           importados++
         } catch (err) { errores.push(`Fila ${i + 1} (${nombre}): ${err.message}`) }
       }
-      setImportResult({ importados, errores })
-      toast(`${importados} productos importados${errores.length ? ` · ${errores.length} con error` : ''}`, errores.length ? 'error' : undefined)
+      setImportResult({ importados, omitidos, errores })
+      toast(`${importados} importados${omitidos ? ` · ${omitidos} ya existían` : ''}${errores.length ? ` · ${errores.length} con error` : ''}`, errores.length ? 'error' : undefined)
       cargar()
     } catch (err) { toast('No se pudo leer el archivo: ' + err.message, 'error') }
   }
@@ -255,7 +301,7 @@ export default function ProductosAdmin() {
 
       {importResult && (
         <div style={{ background: 'var(--vd-dim)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: 'var(--vd)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>✓ {importResult.importados} producto(s) importados{importResult.errores?.length ? ` · ${importResult.errores.length} con error` : ''}</span>
+          <span>✓ {importResult.importados} producto(s) importados{importResult.omitidos ? ` · ${importResult.omitidos} ya existían (omitidos)` : ''}{importResult.errores?.length ? ` · ${importResult.errores.length} con error` : ''}</span>
           <button style={{ background: 'none', border: 'none', color: 'var(--vd)', cursor: 'pointer', fontSize: 16 }} onClick={() => setImportResult(null)}>×</button>
         </div>
       )}
