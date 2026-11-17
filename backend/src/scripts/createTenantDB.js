@@ -99,7 +99,7 @@ async function createTenantDB(dbName, nombreNegocio, usuarioLogin, passwordHash)
         cliente_nombre  VARCHAR(100),
         mesa_id         INT,
         vendedor_nombre VARCHAR(100),
-        tipo            ENUM('mesa','domicilio','para_llevar') DEFAULT 'para_llevar',
+        tipo            ENUM('mesa','domicilio','para_llevar','venta_interna','credito') DEFAULT 'para_llevar',
         estado          ENUM('pendiente','en_preparacion','listo','entregado','cancelado') DEFAULT 'pendiente',
         domicilio       DECIMAL(12,2) DEFAULT 0,
         observaciones   TEXT,

@@ -51,6 +51,17 @@ async function run(pool, dbName) {
     }
   }
 
+  // El formulario y el panel ofrecen "Interna" (venta_interna) y "Crédito", pero la base solo aceptaba
+  // mesa/domicilio/para_llevar: un pedido "Interna" fallaba con error 500. Se amplía la lista (sin perder datos).
+  {
+    const [[ct]] = await pool.query(
+      "SELECT COLUMN_TYPE AS t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pedidos' AND COLUMN_NAME = 'tipo'")
+    if (ct && ct.t.startsWith('enum(') && !ct.t.includes('venta_interna')) {
+      await pool.query("ALTER TABLE pedidos MODIFY COLUMN tipo ENUM('mesa','domicilio','para_llevar','venta_interna','credito') DEFAULT 'para_llevar'")
+      console.log(`[ensureSchema] ${dbName}: pedidos.tipo ahora acepta venta_interna y credito`)
+    }
+  }
+
   // Historial de movimientos de inventario (ventas, entradas, mermas, conteos).
   await pool.query(`CREATE TABLE IF NOT EXISTS stock_movimientos (
     id               INT AUTO_INCREMENT PRIMARY KEY,
