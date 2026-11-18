@@ -239,12 +239,24 @@ export default function ProductosAdmin() {
     return (idx.nombre < 0 || idx.venta < 0) ? ORDEN_PLANTILLA : idx
   }
 
+  const [progreso, setProgreso] = useState(null) // { fase, actual, total, nombre, importados, omitidos, errores }
+
+  // Evita cerrar o recargar la página por accidente mientras se está cargando.
+  useEffect(() => {
+    if (!progreso || progreso.fase === 'fin') return
+    const f = ev => { ev.preventDefault(); ev.returnValue = '' }
+    window.addEventListener('beforeunload', f)
+    return () => window.removeEventListener('beforeunload', f)
+  }, [progreso?.fase])
+
   async function importarArchivo(e) {
     const file = e.target.files[0]; e.target.value = ''
-    if (!file) return
+    if (!file || (progreso && progreso.fase !== 'fin')) return
+    setImportResult(null)
+    setProgreso({ fase: 'leyendo', actual: 0, total: 0, nombre: '', importados: 0, omitidos: 0, errores: 0 })
     try {
       const filas = await leerFilas(file)
-      if (filas.length < 2) return toast('Archivo vacío', 'error')
+      if (filas.length < 2) { setProgreso(null); return toast('Archivo vacío', 'error') }
       const idx = mapearColumnas(filas[0])
       // Categorías existentes; las que no existan se crean con el nombre del archivo.
       const cats = {}
@@ -252,14 +264,19 @@ export default function ProductosAdmin() {
       // Nombres que ya existen: esas filas se omiten para no duplicar.
       const existentes = new Set(((await api.getProductos()).data || []).map(p => norm(p.nombre)))
       let importados = 0, omitidos = 0; const errores = []
+      const total = filas.slice(1).filter(cols => { const n = String(cols[idx.nombre] ?? '').trim(); return n && !/^\(ejemplo\)/i.test(n) }).length
+      let hechos = 0
+      const avanzar = nombre => { hechos++; setProgreso({ fase: 'cargando', actual: hechos, total, nombre, importados, omitidos, errores: errores.length }) }
+      setProgreso({ fase: 'cargando', actual: 0, total, nombre: '', importados: 0, omitidos: 0, errores: 0 })
       for (let i = 1; i < filas.length; i++) {
         const cols = filas[i]
         const c = k => (idx[k] >= 0 && idx[k] !== undefined) ? String(cols[idx[k]] ?? '').trim() : ''
         const nombre = c('nombre')
         if (!nombre || /^\(ejemplo\)/i.test(nombre)) continue
+        setProgreso(pr => ({ ...pr, nombre }))
         const precio = parsePrecio(c('venta'))
-        if (!precio) { errores.push(`Fila ${i + 1} (${nombre}): falta el precio de venta`); continue }
-        if (existentes.has(norm(nombre))) { omitidos++; continue }
+        if (!precio) { errores.push(`Fila ${i + 1} (${nombre}): falta el precio de venta`); avanzar(nombre); continue }
+        if (existentes.has(norm(nombre))) { omitidos++; avanzar(nombre); continue }
         try {
           let categoria_id = null
           const catNom = c('categoria')
@@ -278,11 +295,13 @@ export default function ProductosAdmin() {
           existentes.add(norm(nombre))
           importados++
         } catch (err) { errores.push(`Fila ${i + 1} (${nombre}): ${err.message}`) }
+        avanzar(nombre)
       }
+      setProgreso({ fase: 'fin', actual: total, total, nombre: '', importados, omitidos, errores: errores.length })
       setImportResult({ importados, omitidos, errores })
       toast(`${importados} importados${omitidos ? ` · ${omitidos} ya existían` : ''}${errores.length ? ` · ${errores.length} con error` : ''}`, errores.length ? 'error' : undefined)
       cargar()
-    } catch (err) { toast('No se pudo leer el archivo: ' + err.message, 'error') }
+    } catch (err) { setProgreso(null); toast('No se pudo leer el archivo: ' + err.message, 'error') }
   }
 
   return (
@@ -293,12 +312,27 @@ export default function ProductosAdmin() {
         <div className="page-actions">
           <button className="btn btn-ghost" onClick={descargarPlantilla}>Descargar plantilla Excel</button>
           <button className="btn btn-ghost" onClick={descargarCombos}>Descargar combos (Excel)</button>
-          <button className="btn btn-dark" onClick={() => document.getElementById('csvImport').click()}>Carga masiva (Excel)</button>
+          <button className="btn btn-dark" disabled={progreso && progreso.fase !== 'fin'} onClick={() => document.getElementById('csvImport').click()}>{progreso && progreso.fase !== 'fin' ? 'Cargando…' : 'Carga masiva (Excel)'}</button>
           <input type="file" id="csvImport" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={importarArchivo} />
           <button className="btn btn-primary" onClick={abrirNuevo}>+ Nuevo producto</button>
         </div>
       </div>
 
+      {progreso && progreso.fase !== 'fin' && (
+        <div className="import-progress" role="status" aria-live="polite">
+          <div className="import-progress-top">
+            <span className="import-spin" aria-hidden="true" />
+            <b>{progreso.fase === 'leyendo' ? 'Leyendo el archivo…' : `Cargando productos: ${progreso.actual} de ${progreso.total}`}</b>
+            {progreso.fase === 'cargando' && progreso.total > 0 && <span className="import-pct">{Math.round(progreso.actual / progreso.total * 100)}%</span>}
+          </div>
+          <div className="import-bar"><div className={`import-bar-fill ${progreso.fase === 'leyendo' ? 'indet' : ''}`} style={progreso.fase === 'leyendo' ? undefined : { width: `${progreso.total ? progreso.actual / progreso.total * 100 : 0}%` }} /></div>
+          <div className="import-progress-sub">
+            {progreso.nombre ? <span className="import-now">{progreso.nombre}</span> : <span>Preparando…</span>}
+            <span>✓ {progreso.importados} nuevos{progreso.omitidos ? ` · ${progreso.omitidos} ya existían` : ''}{progreso.errores ? ` · ${progreso.errores} con error` : ''}</span>
+          </div>
+          <div className="import-progress-warn">No cierres ni recargues esta página hasta que termine.</div>
+        </div>
+      )}
       {importResult && (
         <div style={{ background: 'var(--vd-dim)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: 'var(--vd)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>✓ {importResult.importados} producto(s) importados{importResult.omitidos ? ` · ${importResult.omitidos} ya existían (omitidos)` : ''}{importResult.errores?.length ? ` · ${importResult.errores.length} con error` : ''}</span>
