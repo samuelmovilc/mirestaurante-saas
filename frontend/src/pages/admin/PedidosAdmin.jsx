@@ -1,3 +1,4 @@
+import { filtrarProductos } from '../../lib/buscar'
 import { useState, useEffect, useRef } from 'react'
 import { api, fmt, fmtF, today, fechaLocal, sumarDias } from '../../lib/api'
 import { useToast } from '../../hooks/useToast'
@@ -101,12 +102,14 @@ export default function PedidosAdmin() {
     return itemsEdit.reduce((s, it) => s + (parseFloat(it.precio_unitario) || 0) * (parseInt(it.cantidad) || 1), 0)
   }
 
-  async function buscarProducto(q) {
+  // El catálogo se carga una vez y se filtra aquí: el servidor ignoraba el texto y devolvía todos los productos.
+  const [catalogo, setCatalogo] = useState([])
+  useEffect(() => { api.getProductos({ activo: 1 }).then(r => setCatalogo(r.data || [])).catch(() => {}) }, [])
+  const sinStock = p => !!p.controla_stock && p.stock <= 0
+
+  function buscarProducto(q) {
     if (!q.trim()) { setProdResults([]); return }
-    try {
-      const res = await api.getProductos({ q, activo: 1 })
-      setProdResults(res.data || [])
-    } catch (e) {}
+    setProdResults(filtrarProductos(catalogo, q, 30))
   }
 
   function agregarProducto(prod) {
@@ -491,13 +494,16 @@ export default function PedidosAdmin() {
                 ))}
 
                 <div className="prod-search-wrap">
-                  <input ref={prodSearchRef} className="input" style={{ width: '100%', marginTop: 12, background: 'var(--bg3)', border: 'none', padding: '10px 14px' }} placeholder="Buscar y agregar producto..." onChange={e => buscarProducto(e.target.value)} />
+                  <input ref={prodSearchRef} className="input" style={{ width: '100%', marginTop: 12, background: 'var(--bg3)', border: 'none', padding: '10px 14px' }} placeholder="Buscar y agregar producto..." onChange={e => buscarProducto(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const p = prodResults.find(x => !sinStock(x)); if (p) agregarProducto(p) } else if (e.key === 'Escape') { setProdResults([]); e.target.value = '' } }} autoComplete="off" />
+                  {prodSearchRef.current?.value?.trim() && prodResults.length === 0 && (
+                    <div className="prod-results"><div className="prod-result-item" style={{ color: 'var(--text3)', cursor: 'default' }}>Sin resultados</div></div>
+                  )}
                   {prodResults.length > 0 && (
                     <div className="prod-results">
                       {prodResults.map(p => (
-                        <div key={p.id} className="prod-result-item" onClick={() => agregarProducto(p)}>
-                          <span>{p.nombre}</span>
-                          <span className="prod-result-price">{fmt(p.precio_venta)}</span>
+                        <div key={p.id} className="prod-result-item" onClick={() => !sinStock(p) && agregarProducto(p)} style={sinStock(p) ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}>
+                          <span>{p.nombre}{p.categoria_nombre && <small style={{ color: 'var(--text3)', marginLeft: 6 }}>{p.categoria_nombre}</small>}</span>
+                          <span className="prod-result-price">{sinStock(p) ? 'Agotado' : fmt(p.precio_venta)}</span>
                         </div>
                       ))}
                     </div>

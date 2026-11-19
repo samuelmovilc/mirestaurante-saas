@@ -1,3 +1,4 @@
+import { filtrarProductos } from '../lib/buscar'
 import { useState, useEffect, useMemo } from 'react'
 import { api, fmt } from '../lib/api'
 import { useToast } from '../hooks/useToast'
@@ -48,11 +49,10 @@ export default function PedidoPage() {
 
   const recargarProductos = () => api.getProductos({ activo: 1, visible_formulario: 1 }).then(r => setProductos(r.data || [])).catch(() => {})
 
+  // Al buscar se mira TODO el menú (no solo la categoría activa); sin texto, se filtra por categoría.
   const productosFiltrados = useMemo(() => {
-    let lista = productos
-    if (catActiva !== 'todos') lista = lista.filter(p => p.categoria_id == catActiva)
-    if (busqueda.trim()) lista = lista.filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
-    return lista
+    if (busqueda.trim()) return filtrarProductos(productos, busqueda)
+    return catActiva !== 'todos' ? productos.filter(p => p.categoria_id == catActiva) : productos
   }, [productos, catActiva, busqueda])
 
   const total = carrito.reduce((s, it) => s + it.precio_venta * it.cantidad, 0)
@@ -222,20 +222,23 @@ export default function PedidoPage() {
           <div className="card-header"><h3>Menú</h3></div>
           <div className="card-body">
             <div className="form-group">
-              <input className="input" placeholder="🔍  Buscar producto..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ marginBottom: 12 }} />
+              <div style={{ position: 'relative', marginBottom: 12 }}>
+                <input className="input" type="search" placeholder="🔍  Buscar producto..." value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ paddingRight: 36 }} autoComplete="off" />
+                {busqueda && <button type="button" aria-label="Borrar búsqueda" onClick={() => setBusqueda('')} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text3)', padding: '4px 8px' }}>×</button>}
+              </div>
             </div>
 
             <div className="cats-scroll">
-              <button className={`cat-btn ${catActiva === 'todos' ? 'active' : ''}`} onClick={() => setCatActiva('todos')}>Todos</button>
+              <button className={`cat-btn ${catActiva === 'todos' ? 'active' : ''}`} onClick={() => { setBusqueda(''); setCatActiva('todos') }}>Todos</button>
               {categorias.map(c => (
-                <button key={c.id} className={`cat-btn ${catActiva == c.id ? 'active' : ''}`} onClick={() => setCatActiva(c.id)}>
+                <button key={c.id} className={`cat-btn ${catActiva == c.id ? 'active' : ''}`} onClick={() => { setBusqueda(''); setCatActiva(c.id) }}>
                   {c.icono} {c.nombre}
                 </button>
               ))}
             </div>
 
             {productosFiltrados.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text3)', fontSize: 13 }}>Sin productos</div>
+              <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text3)', fontSize: 13 }}>{busqueda.trim() ? `Sin resultados para "${busqueda.trim()}"` : 'Sin productos'}</div>
             ) : (
               <div className="productos-grid">
                 {productosFiltrados.map(p => (
