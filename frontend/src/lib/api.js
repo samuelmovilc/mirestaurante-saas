@@ -166,3 +166,15 @@ export function today() {
   const day = String(d.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
+
+// Fecha (YYYY-MM-DD) en la hora local del navegador (Colombia) de un instante o fecha cualquiera.
+export function fechaLocal(v) {
+  const d = v instanceof Date ? v : new Date(v)
+  if (isNaN(d)) return ''
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+// Suma días a una fecha YYYY-MM-DD (sin saltos por zona horaria).
+export function sumarDias(ymd, n) {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return fechaLocal(new Date(y, m - 1, d + n))
+}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { api, fmt, fmtF, today } from '../../lib/api'
+import { api, fmt, fmtF, today, fechaLocal, sumarDias } from '../../lib/api'
 import { useToast } from '../../hooks/useToast'
 import { downloadFacturaPDF, downloadComandasPDF } from '../../lib/pdfHelpers'
 
@@ -49,8 +49,22 @@ export default function PedidosAdmin() {
       const estadoDB = (params.filtroEstado ?? filtroEstado)
       if (estadoDB === 'liquidado') p.estado = 'entregado'
       else if (estadoDB !== 'todas') p.estado = estadoDB
-      const res = await api.getPedidos(p)
-      setPedidos(res.data || [])
+      if (p.fecha) {
+        // El servidor guarda la hora en UTC: después de las 7 pm un pedido de hoy queda con la fecha de mañana.
+        // Se piden el día y el siguiente y se deja solo lo que es de ese día en hora de Colombia (tiempo real, sin esperar nada).
+        const dia = p.fecha
+        const [r1, r2] = await Promise.all([api.getPedidos(p), api.getPedidos({ ...p, fecha: sumarDias(dia, 1) })])
+        const vistos = new Set()
+        const lista = [...(r1.data || []), ...(r2.data || [])].filter(x => {
+          if (vistos.has(x.id) || fechaLocal(x.created_at) !== dia) return false
+          vistos.add(x.id); return true
+        })
+        lista.sort((x, y) => (p.orden === 'asc' ? 1 : -1) * (new Date(x.created_at) - new Date(y.created_at)))
+        setPedidos(lista)
+      } else {
+        const res = await api.getPedidos(p)
+        setPedidos(res.data || [])
+      }
     } catch (e) { toast(e.message, 'error') }
     finally { setLoading(false) }
   }

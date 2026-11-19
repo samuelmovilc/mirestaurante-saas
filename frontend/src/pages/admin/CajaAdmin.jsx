@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
 import 'jspdf-autotable'
-import { api, fmt, fmtF } from '../../lib/api'
+import { api, fmt, fmtF, fechaLocal, sumarDias } from '../../lib/api'
 import { useToast } from '../../hooks/useToast'
 import { downloadCuadrePDF } from '../../lib/pdfHelpers'
 
@@ -63,14 +63,13 @@ export default function CajaAdmin() {
 
       if (turnoActual) {
         // Filtrar ventas por fecha de apertura del turno (ventas no tiene turno_id)
-        const fechaApertura = turnoActual.fecha_apertura
-          ? new Date(turnoActual.fecha_apertura).toISOString().slice(0,10)
-          : new Date().toISOString().slice(0,10)
+        // Fechas en hora de Colombia: el servidor guarda UTC y las ventas de la noche caían en el día siguiente.
+        const diaApertura = fechaLocal(turnoActual.fecha_apertura || new Date())
         const [vRes, gRes] = await Promise.all([
-          api.getVentas({ fecha_inicio: fechaApertura, fecha_fin: fechaApertura }),
+          api.getVentas({ fecha_inicio: diaApertura, fecha_fin: sumarDias(diaApertura, 1) }),
           api.getGastos(turnoActual.id)
         ])
-        setVentasTurno(vRes.data || [])
+        setVentasTurno((vRes.data || []).filter(v => fechaLocal(v.created_at) === diaApertura))
         setGastosTurno(gRes.data || [])
       } else {
         setVentasTurno([])
