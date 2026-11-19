@@ -18,8 +18,12 @@ function getTenantPool(dbName) {
     database:           dbName,
     waitForConnections: true,
     connectionLimit:    5,
-    timezone:           'America/Bogota',
+    // 'America/Bogota' no es válido para el driver (lo ignoraba): fechas y horas se desfasaban 5 h.
+    // Con desfase fijo, el driver y la sesión de MySQL usan la hora de Colombia: DATE(created_at),
+    // NOW() y CURDATE() coinciden con el "hoy" del restaurante, también después de las 7 pm.
+    timezone:           '-05:00',
   })
+  pool.on('connection', conn => { conn.query("SET time_zone = '-05:00'") })
 
   tenantPools.set(dbName, pool)
   return pool
