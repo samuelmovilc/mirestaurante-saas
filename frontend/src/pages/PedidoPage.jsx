@@ -47,6 +47,11 @@ export default function PedidoPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  // Regla: sin caja abierta no se toman pedidos.
+  const [cajaAbierta, setCajaAbierta] = useState(null) // null = aún no se sabe
+  const revisarCaja = () => api.estadoCaja().then(r => setCajaAbierta(!!r.data?.abierta)).catch(() => {})
+  useEffect(() => { revisarCaja(); const id = setInterval(revisarCaja, 20000); return () => clearInterval(id) }, [])
+
   const recargarProductos = () => api.getProductos({ activo: 1, visible_formulario: 1 }).then(r => setProductos(r.data || [])).catch(() => {})
 
   // Al buscar se mira TODO el menú (no solo la categoría activa); sin texto, se filtra por categoría.
@@ -83,6 +88,7 @@ export default function PedidoPage() {
   function quitar(id) { setCarrito(prev => prev.filter(x => x.id !== id)) }
 
   async function enviarPedido() {
+    if (cajaAbierta === false) return toast('La caja está cerrada. Pide al administrador que la abra para tomar pedidos.', 'error')
     if (!cliente.trim()) return toast('Ingresa el nombre del cliente', 'error')
     if (!carrito.length) return toast('Agrega al menos un producto', 'error')
     if (tipo === 'mesa' && !mesaId) return toast('Selecciona una mesa', 'error')
@@ -116,6 +122,7 @@ export default function PedidoPage() {
     } catch (err) {
       toast(err.message || 'Error al enviar pedido', 'error')
       recargarProductos() // el stock pudo cambiar mientras se armaba el pedido
+      revisarCaja()
     } finally {
       setEnviando(false)
     }
@@ -148,6 +155,12 @@ export default function PedidoPage() {
         <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>Tomar pedido</h2>
         <p style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 18 }}>Registra los datos y selecciona los productos.</p>
         <p style={{ fontSize: 12, marginTop: -10, marginBottom: 16 }}>Restaurante: <b>{config.nombre_negocio || getTenant()}</b> <span style={{ color: 'var(--text3)' }}>({getTenant()})</span></p>
+
+        {cajaAbierta === false && (
+          <div role="alert" style={{ background: 'var(--rd-dim, #fee2e2)', border: '1px solid var(--rd, #ef4444)', color: 'var(--rd, #b91c1c)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 13, fontWeight: 600 }}>
+            🔒 La caja está cerrada. No se pueden tomar pedidos hasta que el administrador abra la caja.
+          </div>
+        )}
 
         {/* DATOS */}
         <div className="card" style={{ marginBottom: 16 }}>
@@ -315,10 +328,10 @@ export default function PedidoPage() {
 
       {/* BOTÓN ENVIAR */}
       <div className="btn-enviar-pedido">
-        <button onClick={enviarPedido} disabled={enviando || !carrito.length}>
+        <button onClick={enviarPedido} disabled={enviando || !carrito.length || cajaAbierta === false}>
           {enviando
             ? <><div className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} /> Enviando...</>
-            : `✓ ENVIAR PEDIDO AL POS  ${carrito.length ? `(${fmt(total)})` : ''}`
+            : cajaAbierta === false ? '🔒 CAJA CERRADA' : `✓ ENVIAR PEDIDO AL POS  ${carrito.length ? `(${fmt(total)})` : ''}`
           }
         </button>
       </div>

@@ -41,6 +41,11 @@ router.post('/', async (req, res) => {
   const pool = req.tenantPool
   const conn = await pool.getConnection()
   try {
+    // Regla: no se toman pedidos con la caja cerrada.
+    const [abiertos] = await conn.query('SELECT id FROM turnos_caja WHERE estado = "abierto" LIMIT 1')
+    if (!abiertos.length) {
+      return res.status(409).json({ success: false, error: { code: 'CAJA_CERRADA', message: 'La caja está cerrada. Pide al administrador que abra la caja para tomar pedidos.' } })
+    }
     await conn.beginTransaction()
     // Acepta tanto nombre_cliente como cliente_nombre, tanto tipo_pedido como tipo
     const cliente_nombre  = req.body.cliente_nombre  || req.body.nombre_cliente

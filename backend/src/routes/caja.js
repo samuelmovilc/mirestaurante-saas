@@ -33,6 +33,14 @@ async function enriquecerTurno(turno, pool) {
   }
 }
 
+// Público (lo usa el formulario de pedidos): solo dice si hay caja abierta, sin datos del turno.
+router.get('/estado', async (req, res) => {
+  try {
+    const [rows] = await req.tenantPool.query('SELECT id FROM turnos_caja WHERE estado = "abierto" LIMIT 1')
+    res.json({ success: true, data: { abierta: rows.length > 0 } })
+  } catch (err) { res.status(500).json({ success: false, error: { message: err.message } }) }
+})
+
 router.get('/turno-abierto', authMiddleware, async (req, res) => {
   try {
     const [rows] = await req.tenantPool.query('SELECT * FROM turnos_caja WHERE estado = "abierto" ORDER BY id DESC LIMIT 1')

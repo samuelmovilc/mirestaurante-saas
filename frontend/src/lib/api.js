@@ -114,6 +114,7 @@ export const api = {
 
 
   // PEDIDOS
+  estadoCaja:     () => request('/api/caja/estado'),
   getPedidos:      (params = {}) => request('/api/pedidos?' + new URLSearchParams(params)),
   getPedido:       (id)   => request(`/api/pedidos/${id}`),
   createPedido:    (data) => request('/api/pedidos', { method: 'POST', body: JSON.stringify(data) }),
