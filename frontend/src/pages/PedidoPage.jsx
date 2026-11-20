@@ -49,6 +49,18 @@ export default function PedidoPage() {
 
   // Regla: sin caja abierta no se toman pedidos.
   const [cajaAbierta, setCajaAbierta] = useState(null) // null = aún no se sabe
+  // Mesas con un pedido activo: no admiten otro hasta que se liquide o cancele.
+  const [ocupadas, setOcupadas] = useState({}) // { mesa_id: numero_pedido }
+  const revisarMesas = () => api.mesasOcupadas().then(r => {
+    const m = {}; (r.data || []).forEach(x => { m[x.mesa_id] = x.numero_pedido }); setOcupadas(m)
+  }).catch(() => {})
+  useEffect(() => { revisarMesas(); const id = setInterval(revisarMesas, 15000); return () => clearInterval(id) }, [])
+  // Si la mesa elegida se ocupa, se pasa a la primera libre.
+  useEffect(() => {
+    if (tipo === 'mesa' && mesaId && ocupadas[mesaId]) {
+      const libre = mesas.find(m => !ocupadas[m.id]); setMesaId(libre ? libre.id : '')
+    }
+  }, [ocupadas, mesas])
   const revisarCaja = () => api.estadoCaja().then(r => setCajaAbierta(!!r.data?.abierta)).catch(() => {})
   useEffect(() => { revisarCaja(); const id = setInterval(revisarCaja, 20000); return () => clearInterval(id) }, [])
 
@@ -92,6 +104,7 @@ export default function PedidoPage() {
     if (!cliente.trim()) return toast('Ingresa el nombre del cliente', 'error')
     if (!carrito.length) return toast('Agrega al menos un producto', 'error')
     if (tipo === 'mesa' && !mesaId) return toast('Selecciona una mesa', 'error')
+    if (tipo === 'mesa' && ocupadas[mesaId]) return toast('Esa mesa ya tiene un pedido activo. Elige otra mesa.', 'error')
     setEnviando(true)
     try {
       const res = await api.createPedido({
@@ -113,7 +126,8 @@ export default function PedidoPage() {
       toast(`Pedido #${res.data.numero_pedido} enviado — Total: ${fmt(res.data.total)}`, 'success', 4000)
       setCarrito([])
       setCliente(DEFAULT_CLIENTE)
-      setMesaId(mesas.length > 0 ? mesas[0].id : '')
+      revisarMesas()
+      setMesaId((mesas.find(m => m.id != mesaId && !ocupadas[m.id]) || {}).id || '')
       setVendedorId('')
       setTelefono('')
       setDireccion('')
@@ -122,7 +136,7 @@ export default function PedidoPage() {
     } catch (err) {
       toast(err.message || 'Error al enviar pedido', 'error')
       recargarProductos() // el stock pudo cambiar mientras se armaba el pedido
-      revisarCaja()
+      revisarCaja(); revisarMesas()
     } finally {
       setEnviando(false)
     }
@@ -210,7 +224,7 @@ export default function PedidoPage() {
                 <label className="label">Mesa</label>
                 <select className="select" value={mesaId} onChange={e => setMesaId(e.target.value)}>
                   <option value="">Seleccionar mesa</option>
-                  {mesas.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                  {mesas.map(m => <option key={m.id} value={m.id} disabled={!!ocupadas[m.id]}>{m.nombre}{ocupadas[m.id] ? ` — ocupada (pedido #${ocupadas[m.id]})` : ''}</option>)}
                 </select>
               </div>
             )}

@@ -466,7 +466,7 @@ export default function PedidosAdmin() {
                   </span>
                   <div style={{ fontSize: 11, color: 'var(--text3)' }}>
                     Hora: {new Date(selPedido.created_at).toLocaleTimeString('es-CO')}<br/>
-                    Mesa: {selPedido.mesa_nombre || 'Mesa 1'}
+                    {selPedido.mesa_nombre ? `Mesa: ${selPedido.mesa_nombre}` : (TIPO_LABEL[selPedido.tipo_pedido] || '')}
                   </div>
                 </div>
               </div>

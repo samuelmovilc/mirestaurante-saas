@@ -114,6 +114,7 @@ export const api = {
 
 
   // PEDIDOS
+  mesasOcupadas:  () => request('/api/pedidos/mesas-ocupadas'),
   estadoCaja:     () => request('/api/caja/estado'),
   getPedidos:      (params = {}) => request('/api/pedidos?' + new URLSearchParams(params)),
   getPedido:       (id)   => request(`/api/pedidos/${id}`),

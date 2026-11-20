@@ -11,10 +11,12 @@ router.get('/', authMiddleware, async (req, res) => {
                p.numero        AS numero_pedido,
                p.cliente_nombre AS nombre_cliente,
                p.tipo          AS tipo_pedido,
+               MAX(m.nombre)   AS mesa_nombre,
                GROUP_CONCAT(CONCAT(pd.cantidad,'x ',pd.nombre_producto) SEPARATOR ' + ') AS detalle_resumen,
                COALESCE(SUM(pd.subtotal), 0) AS total
                FROM pedidos p
                LEFT JOIN pedido_detalle pd ON pd.pedido_id = p.id
+               LEFT JOIN mesas m ON m.id = p.mesa_id
                WHERE 1=1`
     const vals = []
     if (estado && estado !== 'todos') { sql += ' AND p.estado = ?'; vals.push(estado) }
@@ -25,11 +27,32 @@ router.get('/', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: { message: err.message } }) }
 })
 
+// Una mesa está ocupada mientras tenga un pedido sin liquidar ni cancelar.
+const ESTADOS_ACTIVOS = "('cancelado','entregado')"
+async function pedidoActivoDeMesa(q, mesaId, excluirPedidoId = 0) {
+  const [[ped]] = await q.query(
+    `SELECT numero FROM pedidos WHERE mesa_id = ? AND estado NOT IN ${ESTADOS_ACTIVOS} AND id <> ? ORDER BY id DESC LIMIT 1`, [mesaId, excluirPedidoId])
+  return ped || null
+}
+function errorMesaOcupada(nombreMesa, numero) {
+  const e = new Error(`${nombreMesa} ya tiene el pedido #${numero} activo. No se puede tomar otro hasta que ese pedido se liquide o se cancele.`)
+  e.status = 409; e.code = 'MESA_OCUPADA'; return e
+}
+
+// Público (lo usa el formulario): qué mesas están ocupadas ahora.
+router.get('/mesas-ocupadas', async (req, res) => {
+  try {
+    const [rows] = await req.tenantPool.query(
+      `SELECT mesa_id, MAX(numero) AS numero_pedido FROM pedidos WHERE mesa_id IS NOT NULL AND estado NOT IN ${ESTADOS_ACTIVOS} GROUP BY mesa_id`)
+    res.json({ success: true, data: rows })
+  } catch (err) { res.status(500).json({ success: false, error: { message: err.message } }) }
+})
+
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const [[p]] = await req.tenantPool.query(
-      `SELECT p.*, p.numero AS numero_pedido, p.cliente_nombre AS nombre_cliente, p.tipo AS tipo_pedido
-       FROM pedidos p WHERE p.id = ?`, [req.params.id])
+      `SELECT p.*, p.numero AS numero_pedido, p.cliente_nombre AS nombre_cliente, p.tipo AS tipo_pedido, m.nombre AS mesa_nombre
+       FROM pedidos p LEFT JOIN mesas m ON m.id = p.mesa_id WHERE p.id = ?`, [req.params.id])
     if (!p) return res.status(404).json({ success: false, error: { message: 'Pedido no encontrado' } })
     const [det] = await req.tenantPool.query('SELECT * FROM pedido_detalle WHERE pedido_id = ?', [req.params.id])
     const total = det.reduce((s, d) => s + Number(d.subtotal || 0), 0)
@@ -50,11 +73,25 @@ router.post('/', async (req, res) => {
     // Acepta tanto nombre_cliente como cliente_nombre, tanto tipo_pedido como tipo
     const cliente_nombre  = req.body.cliente_nombre  || req.body.nombre_cliente
     const mesa_id         = req.body.mesa_id
-    const vendedor_nombre = req.body.vendedor_nombre || req.body.vendedor_id
+    let vendedor_nombre = req.body.vendedor_nombre || null
+    if (!vendedor_nombre && req.body.vendedor_id) {   // el formulario manda el id: se guarda el NOMBRE
+      const [[v]] = await conn.query('SELECT nombre FROM vendedores WHERE id = ?', [req.body.vendedor_id])
+      vendedor_nombre = v ? v.nombre : null
+    }
     const tipo            = req.body.tipo            || req.body.tipo_pedido || 'para_llevar'
     const domicilio       = req.body.domicilio       || 0
     const observaciones   = req.body.observaciones
     const items           = req.body.items
+
+    // Regla: una mesa con un pedido activo no admite otro. Se bloquea la fila de la mesa para que dos
+    // personas que piden a la vez no ocupen la misma mesa.
+    if (tipo === 'mesa') {
+      if (!mesa_id) { const e = new Error('Selecciona una mesa'); e.status = 400; throw e }
+      const [[mesa]] = await conn.query('SELECT id, nombre FROM mesas WHERE id = ? FOR UPDATE', [mesa_id])
+      if (!mesa) { const e = new Error('La mesa seleccionada no existe'); e.status = 400; throw e }
+      const activo = await pedidoActivoDeMesa(conn, mesa.id)
+      if (activo) throw errorMesaOcupada(mesa.nombre, activo.numero)
+    }
 
     // Número autoincremental transaccional
     await conn.query('UPDATE contadores SET valor = valor + 1 WHERE nombre = "pedido"')
@@ -62,7 +99,7 @@ router.post('/', async (req, res) => {
 
     const [result] = await conn.query(
       'INSERT INTO pedidos (numero, cliente_nombre, mesa_id, vendedor_nombre, tipo, domicilio, observaciones) VALUES (?,?,?,?,?,?,?)',
-      [numero, cliente_nombre, mesa_id || null, vendedor_nombre, tipo, domicilio, observaciones]
+      [numero, cliente_nombre, tipo === 'mesa' ? (mesa_id || null) : null, vendedor_nombre, tipo, domicilio, observaciones]
     )
     const pedidoId = result.insertId
 
@@ -82,7 +119,7 @@ router.post('/', async (req, res) => {
     res.status(201).json({ success: true, data: { id: pedidoId, numero_pedido: numero, total } })
   } catch (err) {
     await conn.rollback()
-    res.status(err.status || 500).json({ success: false, error: { message: err.message } })
+    res.status(err.status || 500).json({ success: false, error: { message: err.message, ...(err.code ? { code: err.code } : {}) } })
   } finally { conn.release() }
 })
 
@@ -91,11 +128,24 @@ router.put('/:id', authMiddleware, async (req, res) => {
   const conn = await pool.getConnection()
   try {
     await conn.beginTransaction()
-    const { cliente_nombre, mesa_id, vendedor_nombre, tipo, domicilio, observaciones, items } = req.body
-    await conn.query(
-      'UPDATE pedidos SET cliente_nombre=?, mesa_id=?, vendedor_nombre=?, tipo=?, domicilio=?, observaciones=? WHERE id=?',
-      [cliente_nombre, mesa_id || null, vendedor_nombre, tipo, domicilio || 0, observaciones, req.params.id]
-    )
+    const { items } = req.body
+    // Solo se actualizan los campos que llegan. Antes, editar los productos borraba el nombre del cliente,
+    // la mesa, el vendedor y el tipo (llegaban sin definir y se guardaban como vacío).
+    const sets = [], vals = []
+    for (const campo of ['cliente_nombre', 'mesa_id', 'vendedor_nombre', 'tipo', 'domicilio', 'observaciones']) {
+      if (req.body[campo] !== undefined) { sets.push(`${campo} = ?`); vals.push(['mesa_id'].includes(campo) ? (req.body[campo] || null) : req.body[campo]) }
+    }
+    const [[actual]] = await conn.query('SELECT tipo, mesa_id FROM pedidos WHERE id = ? FOR UPDATE', [req.params.id])
+    if (!actual) { await conn.rollback(); return res.status(404).json({ success: false, error: { message: 'Pedido no encontrado' } }) }
+    const tipoFinal = req.body.tipo !== undefined ? req.body.tipo : actual.tipo
+    const mesaFinal = req.body.mesa_id !== undefined ? (req.body.mesa_id || null) : actual.mesa_id
+    if (tipoFinal === 'mesa' && mesaFinal && (mesaFinal !== actual.mesa_id)) {
+      const [[mesa]] = await conn.query('SELECT id, nombre FROM mesas WHERE id = ? FOR UPDATE', [mesaFinal])
+      if (!mesa) { const e = new Error('La mesa seleccionada no existe'); e.status = 400; throw e }
+      const activo = await pedidoActivoDeMesa(conn, mesa.id, Number(req.params.id))
+      if (activo) throw errorMesaOcupada(mesa.nombre, activo.numero)
+    }
+    if (sets.length) await conn.query(`UPDATE pedidos SET ${sets.join(', ')} WHERE id = ?`, [...vals, req.params.id])
     if (Array.isArray(items)) {
       // Un pedido cancelado no tiene stock descontado; en los demás se devuelve lo anterior y se descuenta lo nuevo.
       const [[ped]] = await conn.query('SELECT estado FROM pedidos WHERE id = ?', [req.params.id])
@@ -114,7 +164,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
     res.json({ success: true })
   } catch (err) {
     await conn.rollback()
-    res.status(err.status || 500).json({ success: false, error: { message: err.message } })
+    res.status(err.status || 500).json({ success: false, error: { message: err.message, ...(err.code ? { code: err.code } : {}) } })
   } finally { conn.release() }
 })
 
@@ -125,8 +175,14 @@ router.patch('/:id/estado', authMiddleware, async (req, res) => {
     const estados = ['pendiente','en_preparacion','listo','entregado','cancelado']
     if (!estados.includes(estado)) return res.status(400).json({ success: false, error: { message: 'Estado inválido' } })
     await conn.beginTransaction()
-    const [[ped]] = await conn.query('SELECT estado FROM pedidos WHERE id = ? FOR UPDATE', [req.params.id])
+    const [[ped]] = await conn.query('SELECT estado, tipo, mesa_id FROM pedidos WHERE id = ? FOR UPDATE', [req.params.id])
     if (!ped) { await conn.rollback(); return res.status(404).json({ success: false, error: { message: 'Pedido no encontrado' } }) }
+    // Reactivar un pedido cancelado de una mesa que ya tiene otro pedido activo no se permite.
+    if (ped.estado === 'cancelado' && estado !== 'cancelado' && ped.tipo === 'mesa' && ped.mesa_id) {
+      const [[mesa]] = await conn.query('SELECT id, nombre FROM mesas WHERE id = ? FOR UPDATE', [ped.mesa_id])
+      const activo = mesa && await pedidoActivoDeMesa(conn, mesa.id, Number(req.params.id))
+      if (activo) throw errorMesaOcupada(mesa.nombre, activo.numero)
+    }
     // Cancelar devuelve el stock; reactivar un pedido cancelado lo vuelve a descontar.
     if (estado === 'cancelado' && ped.estado !== 'cancelado') {
       await devolverPedido(conn, req.params.id, 'devolucion', 'Pedido cancelado')
@@ -139,7 +195,7 @@ router.patch('/:id/estado', authMiddleware, async (req, res) => {
     res.json({ success: true })
   } catch (err) {
     await conn.rollback()
-    res.status(err.status || 500).json({ success: false, error: { message: err.message } })
+    res.status(err.status || 500).json({ success: false, error: { message: err.message, ...(err.code ? { code: err.code } : {}) } })
   } finally { conn.release() }
 })
 
