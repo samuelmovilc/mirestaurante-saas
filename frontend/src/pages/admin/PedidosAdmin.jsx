@@ -99,7 +99,7 @@ export default function PedidosAdmin() {
   }
 
   function calcTotal() {
-    return itemsEdit.reduce((s, it) => s + (parseFloat(it.precio_unitario) || 0) * (parseInt(it.cantidad) || 1), 0)
+    return itemsEdit.reduce((s, it) => s + (parseFloat(it.precio_unitario) || 0) * (parseInt(it.cantidad) || 0), 0)
   }
 
   // El catálogo se carga una vez y se filtra aquí: el servidor ignoraba el texto y devolvía todos los productos.
@@ -115,7 +115,7 @@ export default function PedidosAdmin() {
   function agregarProducto(prod) {
     setItemsEdit(prev => {
       const ex = prev.find(it => it.producto_id == prod.id)
-      if (ex) return prev.map(it => it.producto_id == prod.id ? { ...it, cantidad: it.cantidad + 1 } : it)
+      if (ex) return prev.map(it => it.producto_id == prod.id ? { ...it, cantidad: (parseInt(it.cantidad) || 0) + 1 } : it)
       return [...prev, { producto_id: prod.id, nombre_producto: prod.nombre, precio_unitario: prod.precio_venta, precio_costo: prod.precio_costo, cantidad: 1, nota: '' }]
     })
     setProdResults([])
@@ -481,23 +481,29 @@ export default function PedidosAdmin() {
               <div className="detail-section" style={{ marginBottom: 24 }}>
                 <div style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--text3)', fontWeight: 700, marginBottom: 8 }}>Productos</div>
                 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 50px 60px 70px 24px', gap: 8, paddingBottom: 8, borderBottom: '1px solid var(--border)', fontSize: 10, textTransform: 'uppercase', color: 'var(--text3)', fontWeight: 700 }}>
-                  <span>Producto</span>
-                  <span style={{ textAlign: 'center' }}>Cant</span>
-                  <span style={{ textAlign: 'right' }}>P.Unit</span>
-                  <span style={{ textAlign: 'right' }}>Sub</span>
-                  <span></span>
-                </div>
-                
-                {itemsEdit.map((it, idx) => (
-                  <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 50px 60px 70px 24px', gap: 8, alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border-light)' }}>
-                    <span style={{ fontSize: 12, color: 'var(--text)' }}>{it.nombre_producto}</span>
-                    <input className="input" type="number" value={it.cantidad} min="1" style={{ textAlign: 'center', padding: '4px', fontSize: 12, background: 'var(--bg3)', border: 'none' }} onChange={e => updItem(idx, 'cantidad', parseInt(e.target.value) || 1)} />
-                    <span style={{ textAlign: 'right', fontSize: 12, color: 'var(--text2)' }}>{it.precio_unitario}</span>
-                    <span style={{ textAlign: 'right', fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{fmt((parseFloat(it.precio_unitario)||0) * (parseInt(it.cantidad)||1))}</span>
-                    <button className="btn btn-ghost btn-xs" style={{ padding: 0, color: '#ef4444' }} onClick={() => quitarItem(idx)}>×</button>
-                  </div>
-                ))}
+                {itemsEdit.length === 0 && <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--text3)' }}>Sin productos. Busca abajo para agregar.</div>}
+
+                {itemsEdit.map((it, idx) => {
+                  const cant = parseInt(it.cantidad) || 0
+                  return (
+                    <div key={idx} style={{ padding: '10px 0', borderBottom: '1px solid var(--border-light)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', lineHeight: 1.3 }}>{it.nombre_producto}</span>
+                        <button className="btn btn-ghost btn-xs" title="Quitar producto" style={{ padding: '0 6px', color: '#ef4444', fontSize: 16, lineHeight: 1 }} onClick={() => quitarItem(idx)}>×</button>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                        <button type="button" className="qty-btn" aria-label="Disminuir cantidad" disabled={cant <= 1} onClick={() => updItem(idx, 'cantidad', Math.max(1, cant - 1))}>−</button>
+                        <input className="input qty-input" type="text" inputMode="numeric" aria-label="Cantidad" value={it.cantidad}
+                          onFocus={e => e.target.select()}
+                          onChange={e => updItem(idx, 'cantidad', e.target.value.replace(/\D/g, '').slice(0, 4))}
+                          onBlur={() => updItem(idx, 'cantidad', Math.max(1, parseInt(it.cantidad) || 1))} />
+                        <button type="button" className="qty-btn" aria-label="Aumentar cantidad" onClick={() => updItem(idx, 'cantidad', cant + 1)}>+</button>
+                        <span style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--text3)' }}>× {fmt(parseFloat(it.precio_unitario) || 0)}</span>
+                        <span style={{ minWidth: 78, textAlign: 'right', fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>{fmt((parseFloat(it.precio_unitario) || 0) * cant)}</span>
+                      </div>
+                    </div>
+                  )
+                })}
 
                 <div className="prod-search-wrap">
                   <input ref={prodSearchRef} className="input" style={{ width: '100%', marginTop: 12, background: 'var(--bg3)', border: 'none', padding: '10px 14px' }} placeholder="Buscar y agregar producto..." onChange={e => buscarProducto(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const p = prodResults.find(x => !sinStock(x)); if (p) agregarProducto(p) } else if (e.key === 'Escape') { setProdResults([]); e.target.value = '' } }} autoComplete="off" />
@@ -509,7 +515,10 @@ export default function PedidosAdmin() {
                       {prodResults.map(p => (
                         <div key={p.id} className="prod-result-item" onClick={() => !sinStock(p) && agregarProducto(p)} style={sinStock(p) ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}>
                           <span>{p.nombre}{p.categoria_nombre && <small style={{ color: 'var(--text3)', marginLeft: 6 }}>{p.categoria_nombre}</small>}</span>
-                          <span className="prod-result-price">{sinStock(p) ? 'Agotado' : fmt(p.precio_venta)}</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span className="prod-result-price">{sinStock(p) ? 'Agotado' : fmt(p.precio_venta)}</span>
+                            {!sinStock(p) && <button type="button" className="qty-btn qty-btn-add" aria-label={`Agregar ${p.nombre}`} onClick={e => { e.stopPropagation(); agregarProducto(p) }}>+</button>}
+                          </span>
                         </div>
                       ))}
                     </div>
