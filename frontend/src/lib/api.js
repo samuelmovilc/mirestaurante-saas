@@ -61,6 +61,19 @@ async function request(path, options = {}) {
   return data
 }
 
+// Si el servidor no trae el nombre de la mesa del pedido, se completa aquí con el catálogo de mesas
+// (así la lista, el detalle y la impresión muestran la mesa real que se eligió).
+async function conNombreMesa(res) {
+  try {
+    const filas = Array.isArray(res.data) ? res.data : (res.data ? [res.data] : [])
+    if (!filas.some(p => p.mesa_id && !p.mesa_nombre)) return res
+    const m = await request('/api/mesas?todos=1')
+    const nombres = {}; (m.data || []).forEach(x => { nombres[x.id] = x.nombre })
+    filas.forEach(p => { if (p.mesa_id && !p.mesa_nombre) p.mesa_nombre = nombres[p.mesa_id] || null })
+  } catch {}
+  return res
+}
+
 export const api = {
   // AUTH
   login: (username, password) =>
@@ -116,8 +129,8 @@ export const api = {
   // PEDIDOS
   mesasOcupadas:  () => request('/api/pedidos/mesas-ocupadas'),
   estadoCaja:     () => request('/api/caja/estado'),
-  getPedidos:      (params = {}) => request('/api/pedidos?' + new URLSearchParams(params)),
-  getPedido:       (id)   => request(`/api/pedidos/${id}`),
+  getPedidos:      async (params = {}) => conNombreMesa(await request('/api/pedidos?' + new URLSearchParams(params))),
+  getPedido:       async (id)   => conNombreMesa(await request(`/api/pedidos/${id}`)),
   createPedido:    (data) => request('/api/pedidos', { method: 'POST', body: JSON.stringify(data) }),
   updatePedido:    (id, data) => request(`/api/pedidos/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   cambiarEstado:   (id, estado) => request(`/api/pedidos/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado }) }),

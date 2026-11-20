@@ -135,6 +135,12 @@ export default function PedidosAdmin() {
     setGuardando(true)
     try {
       await api.updatePedido(selPedido.id, {
+        // Se reenvían los datos que no se editan para que nunca se pierdan (cliente, mesa, vendedor, tipo).
+        cliente_nombre: selPedido.cliente_nombre ?? selPedido.nombre_cliente ?? null,
+        mesa_id: selPedido.mesa_id ?? null,
+        vendedor_nombre: selPedido.vendedor_nombre ?? null,
+        tipo: selPedido.tipo ?? selPedido.tipo_pedido,
+        domicilio: selPedido.domicilio ?? 0,
         observaciones: obsEdit,
         items: itemsEdit.map(it => ({
           producto_id: it.producto_id || null,
