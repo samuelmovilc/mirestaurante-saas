@@ -61,6 +61,15 @@ router.post('/cerrar', authMiddleware, soloAdmin, async (req, res) => {
   try {
     const [[turno]] = await req.tenantPool.query('SELECT * FROM turnos_caja WHERE estado = "abierto" ORDER BY id DESC LIMIT 1')
     if (!turno) return res.status(400).json({ success: false, error: { message: 'No hay turno abierto' } })
+    // Regla: no se cierra la caja con pedidos pendientes (sin liquidar ni anular), de cualquier día:
+    // un turno puede pasar de la medianoche y seguir abierto hasta que el administrador lo cierre.
+    const [pend] = await req.tenantPool.query(
+      `SELECT numero FROM pedidos WHERE estado NOT IN ('cancelado','entregado') ORDER BY numero`)
+    if (pend.length) {
+      const lista = pend.slice(0, 12).map(x => '#' + x.numero).join(', ') + (pend.length > 12 ? ` y ${pend.length - 12} más` : '')
+      return res.status(409).json({ success: false, error: { code: 'PEDIDOS_PENDIENTES', count: pend.length,
+        message: `No puedes cerrar la caja: hay ${pend.length} pedido${pend.length > 1 ? 's' : ''} pendiente${pend.length > 1 ? 's' : ''} (${lista}). Liquídalos o anúlalos primero.` } })
+    }
     await req.tenantPool.query('UPDATE turnos_caja SET estado = "cerrado", fecha_cierre = NOW() WHERE id = ?', [turno.id])
     res.json({ success: true })
   } catch (err) { res.status(500).json({ success: false, error: { message: err.message } }) }

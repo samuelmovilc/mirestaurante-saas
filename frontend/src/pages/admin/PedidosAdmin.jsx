@@ -50,6 +50,9 @@ export default function PedidosAdmin() {
       const estadoDB = (params.filtroEstado ?? filtroEstado)
       if (estadoDB === 'liquidado') p.estado = 'entregado'
       else if (estadoDB !== 'todas') p.estado = estadoDB
+      // Los pedidos pendientes se muestran siempre, sea del día que sea: si el turno pasó de la medianoche,
+      // los de "ayer" siguen activos y hay que poder verlos para liquidarlos o anularlos.
+      if (estadoDB === 'pendiente' && p.fecha === today()) delete p.fecha
       if (p.fecha) {
         // El servidor guarda la hora en UTC: después de las 7 pm un pedido de hoy queda con la fecha de mañana.
         // Se piden el día y el siguiente y se deja solo lo que es de ese día en hora de Colombia (tiempo real, sin esperar nada).

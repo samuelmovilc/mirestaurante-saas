@@ -62,14 +62,15 @@ export default function CajaAdmin() {
       // Se simplifica: no se inicializan métodos de pago para saldoInicial porque ahora es un campo único
 
       if (turnoActual) {
-        // Filtrar ventas por fecha de apertura del turno (ventas no tiene turno_id)
-        // Fechas en hora de Colombia: el servidor guarda UTC y las ventas de la noche caían en el día siguiente.
-        const diaApertura = fechaLocal(turnoActual.fecha_apertura || new Date())
+        // Ventas del turno = desde la hora de apertura (el turno puede pasar de la medianoche y seguir abierto).
+        // Se piden desde el día de apertura hasta mañana (cubre el desfase de hora del servidor) y se filtra por hora exacta.
+        const apertura = new Date(turnoActual.fecha_apertura || Date.now())
+        const diaApertura = fechaLocal(apertura)
         const [vRes, gRes] = await Promise.all([
-          api.getVentas({ fecha_inicio: diaApertura, fecha_fin: sumarDias(diaApertura, 1) }),
+          api.getVentas({ fecha_inicio: diaApertura, fecha_fin: sumarDias(fechaLocal(new Date()), 1) }),
           api.getGastos(turnoActual.id)
         ])
-        setVentasTurno((vRes.data || []).filter(v => fechaLocal(v.created_at) === diaApertura))
+        setVentasTurno((vRes.data || []).filter(v => new Date(v.created_at) >= apertura))
         setGastosTurno(gRes.data || [])
       } else {
         setVentasTurno([])
