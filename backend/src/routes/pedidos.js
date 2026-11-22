@@ -48,6 +48,101 @@ router.get('/mesas-ocupadas', async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: { message: err.message } }) }
 })
 
+// ───────── Edición de pedidos desde el formulario del mesero (públicas, sin login) ─────────
+// Solo sobre pedidos activos (sin liquidar ni anular). Solo se pueden cambiar los productos y las
+// observaciones: pagos, liquidar y anular siguen siendo solo del administrador. Los precios nunca
+// vienen del navegador: se conservan los del pedido o se toman del catálogo.
+
+router.get('/activos', async (req, res) => {
+  try {
+    const vals = []; let filtro = ''
+    if (req.query.vendedor) { filtro = ' AND p.vendedor_nombre = ?'; vals.push(String(req.query.vendedor)) }
+    const [rows] = await req.tenantPool.query(
+      `SELECT p.id, p.numero, p.cliente_nombre, p.tipo, p.vendedor_nombre, p.estado, p.created_at, p.updated_at,
+              p.editado_por, p.editado_at, MAX(m.nombre) AS mesa_nombre,
+              COALESCE(SUM(d.cantidad * d.precio_unitario), 0) AS total, COALESCE(SUM(d.cantidad), 0) AS unidades
+       FROM pedidos p
+       LEFT JOIN mesas m ON m.id = p.mesa_id
+       LEFT JOIN pedido_detalle d ON d.pedido_id = p.id
+       WHERE p.estado NOT IN ${ESTADOS_ACTIVOS}${filtro}
+       GROUP BY p.id ORDER BY p.id DESC LIMIT 100`, vals)
+    res.json({ success: true, data: rows })
+  } catch (err) { res.status(500).json({ success: false, error: { message: err.message } }) }
+})
+
+async function cargarPedidoActivo(q, id) {
+  const [[ped]] = await q.query(
+    `SELECT p.id, p.numero, p.cliente_nombre, p.tipo, p.vendedor_nombre, p.estado, p.observaciones, p.updated_at,
+            p.editado_por, p.editado_at, m.nombre AS mesa_nombre
+     FROM pedidos p LEFT JOIN mesas m ON m.id = p.mesa_id WHERE p.id = ?`, [id])
+  return ped || null
+}
+
+router.get('/activos/:id', async (req, res) => {
+  try {
+    const ped = await cargarPedidoActivo(req.tenantPool, req.params.id)
+    if (!ped) return res.status(404).json({ success: false, error: { message: 'Pedido no encontrado' } })
+    if (['cancelado', 'entregado'].includes(ped.estado))
+      return res.status(409).json({ success: false, error: { code: 'PEDIDO_CERRADO', message: `El pedido #${ped.numero} ya fue ${ped.estado === 'entregado' ? 'liquidado' : 'anulado'} y no se puede editar.` } })
+    const [detalle] = await req.tenantPool.query(
+      'SELECT producto_id, nombre_producto, cantidad, precio_unitario FROM pedido_detalle WHERE pedido_id = ? ORDER BY id', [ped.id])
+    res.json({ success: true, data: { ...ped, detalle } })
+  } catch (err) { res.status(500).json({ success: false, error: { message: err.message } }) }
+})
+
+router.put('/activos/:id', async (req, res) => {
+  const conn = await req.tenantPool.getConnection()
+  try {
+    await conn.beginTransaction()
+    const [[ped]] = await conn.query('SELECT id, numero, estado, updated_at FROM pedidos WHERE id = ? FOR UPDATE', [req.params.id])
+    if (!ped) { const e = new Error('Pedido no encontrado'); e.status = 404; throw e }
+    if (['cancelado', 'entregado'].includes(ped.estado)) {
+      const e = new Error(`El pedido #${ped.numero} ya fue ${ped.estado === 'entregado' ? 'liquidado' : 'anulado'} y no se puede editar.`)
+      e.status = 409; e.code = 'PEDIDO_CERRADO'; throw e
+    }
+    if (req.body.version && ped.updated_at && new Date(req.body.version).getTime() !== new Date(ped.updated_at).getTime()) {
+      const e = new Error(`El pedido #${ped.numero} fue modificado por otra persona. Se cargó la versión más reciente: revísala y vuelve a intentar.`)
+      e.status = 409; e.code = 'PEDIDO_CAMBIO'; throw e
+    }
+    // Productos pedidos: se suman por producto; precio = el que ya tenía el pedido, o el del catálogo si es nuevo.
+    const pedidos = new Map()
+    for (const it of req.body.items || []) {
+      const id = Number(it.producto_id), cant = parseInt(it.cantidad)
+      if (!id || !(cant > 0)) continue
+      pedidos.set(id, (pedidos.get(id) || 0) + Math.min(cant, 999))
+    }
+    if (!pedidos.size) {
+      const e = new Error('El pedido debe tener al menos un producto. Para anularlo, avisa al administrador.'); e.status = 400; throw e
+    }
+    const [actuales] = await conn.query('SELECT producto_id, nombre_producto, precio_unitario, precio_costo FROM pedido_detalle WHERE pedido_id = ?', [ped.id])
+    const previo = new Map(actuales.map(a => [Number(a.producto_id), a]))
+    const lineas = []
+    for (const [id, cant] of pedidos.entries()) {   // se conserva el orden en que está el pedido
+      const viejo = previo.get(id)
+      if (viejo) { lineas.push({ producto_id: id, nombre_producto: viejo.nombre_producto, cantidad: cant, precio_unitario: viejo.precio_unitario, precio_costo: viejo.precio_costo }); continue }
+      const [[prod]] = await conn.query('SELECT id, nombre, precio_venta, precio_costo, activo FROM productos WHERE id = ?', [id])
+      if (!prod || prod.activo === 0) { const e = new Error('Uno de los productos ya no está disponible'); e.status = 400; throw e }
+      lineas.push({ producto_id: id, nombre_producto: prod.nombre, cantidad: cant, precio_unitario: prod.precio_venta, precio_costo: prod.precio_costo || 0 })
+    }
+    await devolverPedido(conn, ped.id, 'ajuste', 'Pedido editado por el mesero')
+    await conn.query('DELETE FROM pedido_detalle WHERE pedido_id = ?', [ped.id])
+    for (const l of lineas) {
+      await conn.query('INSERT INTO pedido_detalle (pedido_id, producto_id, nombre_producto, cantidad, precio_unitario, precio_costo) VALUES (?,?,?,?,?,?)',
+        [ped.id, l.producto_id, l.nombre_producto, l.cantidad, l.precio_unitario, l.precio_costo])
+    }
+    await descontar(conn, lineas, ped.id, 'Pedido editado por el mesero')
+    const editor = String(req.body.editor || 'Mesero').slice(0, 100)
+    const obs = typeof req.body.observaciones === 'string' ? req.body.observaciones.slice(0, 500) : null
+    await conn.query('UPDATE pedidos SET editado_por = ?, editado_at = NOW(), observaciones = COALESCE(?, observaciones) WHERE id = ?', [editor, obs, ped.id])
+    await conn.commit()
+    const nuevo = await cargarPedidoActivo(conn, ped.id)
+    res.json({ success: true, data: { version: nuevo.updated_at } })
+  } catch (err) {
+    await conn.rollback()
+    res.status(err.status || 500).json({ success: false, error: { message: err.message, ...(err.code ? { code: err.code } : {}) } })
+  } finally { conn.release() }
+})
+
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const [[p]] = await req.tenantPool.query(

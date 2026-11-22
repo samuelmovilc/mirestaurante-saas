@@ -127,6 +127,9 @@ export const api = {
 
 
   // PEDIDOS
+  pedidosActivos:   (vendedor = '') => request('/api/pedidos/activos' + (vendedor ? '?vendedor=' + encodeURIComponent(vendedor) : '')),
+  pedidoActivo:     (id) => request(`/api/pedidos/activos/${id}`),
+  editarPedidoActivo: (id, data) => request(`/api/pedidos/activos/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   mesasOcupadas:  () => request('/api/pedidos/mesas-ocupadas'),
   estadoCaja:     () => request('/api/caja/estado'),
   getPedidos:      async (params = {}) => conNombreMesa(await request('/api/pedidos?' + new URLSearchParams(params))),

@@ -1,4 +1,5 @@
 import { filtrarProductos } from '../lib/buscar'
+import MisPedidos from '../components/MisPedidos'
 import { useState, useEffect, useMemo } from 'react'
 import { api, fmt } from '../lib/api'
 import { useToast } from '../hooks/useToast'
@@ -26,6 +27,7 @@ export default function PedidoPage() {
   const [busqueda, setBusqueda]     = useState('')
   const [carrito, setCarrito]       = useState([])
   const [enviando, setEnviando]     = useState(false)
+  const [vista, setVista]           = useState('nuevo') // 'nuevo' | 'mis'
 
   useEffect(() => {
     Promise.all([
@@ -144,11 +146,7 @@ export default function PedidoPage() {
 
   if (loading) return <div className="loading-page"><div className="spinner" /></div>
 
-  return (
-    <div className="pedido-page">
-      <ToastContainer />
-
-      {/* HEADER */}
+  const encabezado = (
       <header className="pedido-header">
         <div className="pedido-logo">
           <div className="pedido-logo-img">
@@ -164,8 +162,45 @@ export default function PedidoPage() {
           ONLINE
         </div>
       </header>
+  )
+
+  const vendedorNombre = (vendedores.find(v => v.id == vendedorId) || {}).nombre || ''
+  const pestañas = (
+    <div role="tablist" style={{ display: 'flex', gap: 6, marginBottom: 16, background: 'var(--bg3)', padding: 4, borderRadius: 12 }}>
+      {[['nuevo', '➕ Nuevo pedido'], ['mis', '✏️ Mis pedidos']].map(([k, t]) => (
+        <button key={k} type="button" role="tab" aria-selected={vista === k} onClick={() => setVista(k)}
+          style={{ flex: 1, padding: '10px 8px', border: 'none', borderRadius: 9, fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                   background: vista === k ? 'var(--bg2, #fff)' : 'transparent', color: vista === k ? 'var(--primary)' : 'var(--text3)', boxShadow: vista === k ? '0 1px 4px rgba(0,0,0,.12)' : 'none' }}>{t}</button>
+      ))}
+    </div>
+  )
+
+  if (vista === 'mis') return (
+    <div className="pedido-page">
+      <ToastContainer />
+      {encabezado}
+      <div className="pedido-main">
+        {pestañas}
+        <div className="form-group" style={{ marginBottom: 14 }}>
+          <label>Responsable</label>
+          <select className="select" value={vendedorId} onChange={e => setVendedorId(e.target.value)}>
+            <option value="">Todos los pedidos</option>
+            {vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
+          </select>
+        </div>
+        <MisPedidos key={vendedorNombre} vendedorNombre={vendedorNombre} productos={productos} toast={toast} />
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="pedido-page">
+      <ToastContainer />
+
+      {encabezado}
 
       <div className="pedido-main">
+        {pestañas}
         <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>Tomar pedido</h2>
         <p style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 18 }}>Registra los datos y selecciona los productos.</p>
         <p style={{ fontSize: 12, marginTop: -10, marginBottom: 16 }}>Restaurante: <b>{config.nombre_negocio || getTenant()}</b> <span style={{ color: 'var(--text3)' }}>({getTenant()})</span></p>

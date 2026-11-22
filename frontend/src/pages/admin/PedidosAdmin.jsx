@@ -394,7 +394,7 @@ export default function PedidosAdmin() {
                           {d.toLocaleDateString('es-CO')}<br/>
                           <strong>{d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</strong>
                         </td>
-                        <td style={{ padding: '12px 0', fontSize: 12 }}>{p.nombre_cliente || '—'}</td>
+                        <td style={{ padding: '12px 0', fontSize: 12 }}>{p.nombre_cliente || '—'}{p.editado_por && <div title={`Editado por ${p.editado_por}`} style={{ fontSize: 10, color: 'var(--amber, #b45309)', fontWeight: 700 }}>✎ editado por {p.editado_por}</div>}</td>
                         <td style={{ padding: '12px 0', fontSize: 12 }}>{p.mesa_nombre || <span style={{ color: 'var(--text3)', fontSize: 11 }}>{TIPO_LABEL[p.tipo_pedido]}</span>}</td>
                         <td style={{ padding: '12px 0', fontSize: 11 }}>{p.vendedor_nombre || 'Admin'}</td>
                         <td style={{ padding: '12px 0', fontSize: 11, maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={resumenProductos}>

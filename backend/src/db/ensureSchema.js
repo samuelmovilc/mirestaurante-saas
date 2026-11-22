@@ -20,6 +20,13 @@ const EXPECTED = {
     stock:              'INT NOT NULL DEFAULT 0',
     stock_minimo:       'INT NOT NULL DEFAULT 0',
   },
+  // Edición de pedidos desde el formulario del mesero: quién lo editó y cuándo; updated_at sirve para
+  // detectar que otra persona modificó el pedido mientras se editaba.
+  pedidos: {
+    updated_at: 'TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+    editado_por: 'VARCHAR(100) NULL',
+    editado_at:  'TIMESTAMP NULL',
+  },
   categorias: {
     orden:  'INT NULL DEFAULT 0',
     activo: 'TINYINT(1) NULL DEFAULT 1',
