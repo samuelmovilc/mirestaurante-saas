@@ -5,6 +5,7 @@ import 'jspdf-autotable'
 import { api, fmt, fmtF, fechaLocal, sumarDias } from '../../lib/api'
 import { useToast } from '../../hooks/useToast'
 import { downloadCuadrePDF } from '../../lib/pdfHelpers'
+import { codificarDescripcionGasto, parseGasto, desgloseCaja, ventasDelTurno } from '../../lib/cajaMetodos'
 
 export default function CajaAdmin() {
   const { toast, ToastContainer } = useToast()
@@ -150,7 +151,7 @@ export default function CajaAdmin() {
     try {
       await api.crearGasto({
         turno_id: turno.id,
-        descripcion: `${gastoForm.categoria}${gastoForm.observacion ? ' - ' + gastoForm.observacion : ''}`,
+        descripcion: codificarDescripcionGasto(gastoForm.categoria, gastoForm.observacion, gastoForm.metodo_pago),
         monto: parseFloat(gastoForm.monto),
         categoria: gastoForm.categoria,
         metodo_pago: gastoForm.metodo_pago,
@@ -227,8 +228,23 @@ export default function CajaAdmin() {
   }
 
   // ================= IMPRIMIR TIRILLA =================
-  function imprimirCuadre(h) {
-    downloadCuadrePDF(h, {})
+  async function imprimirCuadre(h) {
+    try {
+      const ini = new Date(h.fecha_apertura)
+      const fin = h.fecha_cierre ? new Date(h.fecha_cierre) : new Date()
+      const [vRes, gRes] = await Promise.all([
+        api.getVentas({ fecha_inicio: fechaLocal(ini), fecha_fin: sumarDias(fechaLocal(fin), 1) }),
+        api.getGastos(h.id),
+      ])
+      const desglose = desgloseCaja({
+        ventas: ventasDelTurno(vRes.data || [], h),
+        gastos: gRes.data || [],
+        saldoInicial: h.saldo_inicial,
+      })
+      downloadCuadrePDF({ ...h, desglose }, {})
+    } catch (e) {
+      toast(e.message, 'error')
+    }
   }
 
   // ================= UTILS =================
@@ -246,6 +262,7 @@ export default function CajaAdmin() {
     return <div style={{ padding: 48, textAlign: 'center' }}><div className="spinner" style={{ margin: '0 auto' }} /></div>
   }
 
+  const desgloseActual = turno ? desgloseCaja({ ventas: ventasTurno, gastos: gastosTurno, saldoInicial: turno.saldo_inicial }) : null
   const saldoActual = turno ? (parseFloat(turno.saldo_inicial) + parseFloat(turno.ingresos) - parseFloat(turno.gastos)) : 0
 
   return (
@@ -309,6 +326,37 @@ export default function CajaAdmin() {
                 </div>
               </div>
 
+              {desgloseActual && desgloseActual.metodos.length > 0 && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflowX: 'auto', marginBottom: 24 }}>
+                  <h4 style={{ margin: 0, padding: '10px 12px' }}>Desglose por método de pago</h4>
+                  <table style={{ margin: 0 }}>
+                    <thead style={{ background: 'var(--bg-page)' }}>
+                      <tr>
+                        <th style={{ fontSize: 12, padding: 8 }}>Método</th>
+                        <th style={{ fontSize: 12, padding: 8, textAlign: 'right' }}>Ingresos</th>
+                        <th style={{ fontSize: 12, padding: 8, textAlign: 'right' }}>Egresos</th>
+                        <th style={{ fontSize: 12, padding: 8, textAlign: 'right' }}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {desgloseActual.metodos.map(m => (
+                        <tr key={m.nombre}>
+                          <td style={{ fontSize: 12, padding: 8 }}>{m.nombre}{m.inicial ? <span style={{ color: 'var(--text3)' }}> (incl. base {fmt(m.inicial)})</span> : null}</td>
+                          <td style={{ fontSize: 12, padding: 8, textAlign: 'right', color: 'var(--vd)' }}>{fmt(m.ingresos)}</td>
+                          <td style={{ fontSize: 12, padding: 8, textAlign: 'right', color: 'var(--red)' }}>- {fmt(m.egresos)}</td>
+                          <td style={{ fontSize: 12, padding: 8, textAlign: 'right', fontWeight: 600 }}>{fmt(m.total)}</td>
+                        </tr>
+                      ))}
+                      <tr style={{ background: 'var(--bg-page)' }}>
+                        <td style={{ fontSize: 12, padding: 8, fontWeight: 700 }}>TOTAL EN CAJA</td>
+                        <td colSpan="2"></td>
+                        <td style={{ fontSize: 12, padding: 8, textAlign: 'right', fontWeight: 700 }}>{fmt(desgloseActual.total)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
                 {/* LISTA GASTOS */}
                 <div>
@@ -323,16 +371,16 @@ export default function CajaAdmin() {
                         </tr>
                       </thead>
                       <tbody>
-                        {gastosTurno.map(g => (
+                        {gastosTurno.map(g => { const pg = parseGasto(g); return (
                           <tr key={g.id}>
                             <td style={{ fontSize: 12, padding: 8 }}>
-                              <strong>{g.categoria}</strong><br/>
-                              <span style={{ color: 'var(--text3)' }}>{g.observacion}</span>
+                              <strong>{pg.categoria}</strong><br/>
+                              <span style={{ color: 'var(--text3)' }}>{pg.observacion}</span>
                             </td>
-                            <td style={{ fontSize: 12, padding: 8 }}>{g.metodo_pago}</td>
+                            <td style={{ fontSize: 12, padding: 8 }}>{pg.metodo}</td>
                             <td style={{ fontSize: 12, padding: 8, textAlign: 'right', fontWeight: 600, color: 'var(--red)' }}>- {fmt(g.monto)}</td>
                           </tr>
-                        ))}
+                        )})}
                         {gastosTurno.length === 0 && <tr><td colSpan="3" style={{ padding: 16, textAlign: 'center', fontSize: 12, color: 'var(--text3)' }}>No hay gastos en este turno</td></tr>}
                       </tbody>
                     </table>

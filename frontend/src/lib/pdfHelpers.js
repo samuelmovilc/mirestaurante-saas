@@ -168,61 +168,75 @@ export function downloadComandasPDF(pedidosArray, config) {
 }
 
 export function downloadCuadrePDF(h, config) {
-  const doc = new jsPDF({ unit: 'mm', format: [80, 150] })
-  
+  const money = n => `$${parseFloat(n || 0).toLocaleString('es-CO')}`
+  const d = h.desglose || null
+  const filas = d ? (d.ingresos.length + d.egresos.length + d.metodos.length * 2 + 12) : 0
+  const doc = new jsPDF({ unit: 'mm', format: [80, 100 + filas * 4.5] })
+
   doc.setFont("helvetica", "bold")
   doc.setFontSize(14)
   doc.text("CUADRE DE CAJA", 40, 10, { align: "center" })
-  
+
   doc.setFont("helvetica", "normal")
   doc.setFontSize(10)
   doc.text(`Turno #${h.id}`, 40, 16, { align: "center" })
-  
+
   let y = 24
   doc.setFontSize(9)
   doc.text(`Apertura: ${new Date(h.fecha_apertura).toLocaleString('es-CO')}`, 5, y); y += 4;
   doc.text(`Cierre: ${h.fecha_cierre ? new Date(h.fecha_cierre).toLocaleString('es-CO') : 'En curso'}`, 5, y); y += 4;
   doc.text(`Usr Apertura: ${h.usuario_apertura || '—'}`, 5, y); y += 4;
   doc.text(`Usr Cierre: ${h.usuario_cierre || '—'}`, 5, y); y += 6;
-  
-  doc.line(5, y, 75, y); y += 4;
-  
-  doc.setFont("helvetica", "bold")
-  doc.text("Concepto", 5, y); 
-  doc.text("Valor", 75, y, { align: "right" }); 
-  y += 2;
-  doc.line(5, y, 75, y); y += 5;
-  
-  doc.setFont("helvetica", "normal")
-  doc.text("Saldo Inicial", 5, y);
-  doc.text(`$${parseFloat(h.saldo_inicial||0).toLocaleString('es-CO')}`, 75, y, { align: "right" }); y += 5;
-  
-  doc.text("Ingresos (Ventas)", 5, y);
-  doc.text(`$${parseFloat(h.ingresos||0).toLocaleString('es-CO')}`, 75, y, { align: "right" }); y += 5;
-  
-  if (h.ingresos_por_metodo && h.ingresos_por_metodo.length > 0) {
-    doc.setFont("helvetica", "italic")
-    h.ingresos_por_metodo.forEach(mp => {
-      doc.text(`  - ${mp.metodo_nombre}`, 5, y);
-      doc.text(`$${parseFloat(mp.total||0).toLocaleString('es-CO')}`, 75, y, { align: "right" }); y += 4;
-    });
-    doc.setFont("helvetica", "normal")
-    y += 1;
+
+  const linea = () => { doc.line(5, y, 75, y); y += 5 }
+  const fila = (t, v, bold) => {
+    doc.setFont("helvetica", bold ? "bold" : "normal")
+    doc.text(t, 5, y); doc.text(v, 75, y, { align: "right" }); y += 5
   }
-  
-  doc.text("Gastos", 5, y);
-  doc.text(`-$${parseFloat(h.gastos||0).toLocaleString('es-CO')}`, 75, y, { align: "right" }); y += 6;
-  
-  doc.line(5, y, 75, y); y += 5;
-  
+  const sub = (t, v) => {
+    doc.setFont("helvetica", "italic")
+    doc.text(`  ${t}`, 5, y); doc.text(v, 75, y, { align: "right" }); y += 4
+  }
+
+  linea()
   doc.setFont("helvetica", "bold")
+  doc.text("Concepto", 5, y); doc.text("Valor", 75, y, { align: "right" }); y += 2
+  linea()
+
+  fila("Saldo Inicial", money(h.saldo_inicial))
+  fila("Ingresos (Ventas)", money(h.ingresos), true)
+  if (d && d.ingresos.length) { d.ingresos.forEach(m => sub(m.nombre, money(m.total))); y += 1 }
+  fila("Egresos (Gastos)", `-${money(h.gastos)}`, true)
+  if (d && d.egresos.length) { d.egresos.forEach(m => sub(m.nombre, `-${money(m.total)}`)); y += 1 }
+  y += 1
+  linea()
   doc.setFontSize(11)
-  doc.text("SALDO FINAL", 5, y);
-  doc.text(`$${parseFloat(h.saldo_final_calculado||0).toLocaleString('es-CO')}`, 75, y, { align: "right" }); y += 10;
-  
-  doc.setFont("helvetica", "normal")
+  fila("SALDO FINAL", money(h.saldo_final_calculado), true)
   doc.setFontSize(9)
+  y += 3
+
+  if (d && d.metodos.length) {
+    doc.setFont("helvetica", "bold")
+    doc.text("DESGLOSE POR MÉTODO DE PAGO", 40, y, { align: "center" }); y += 5
+    d.metodos.forEach(m => {
+      doc.setFont("helvetica", "bold")
+      doc.text(m.nombre, 5, y); doc.text(money(m.total), 75, y, { align: "right" }); y += 4
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(8)
+      const partes = []
+      if (m.inicial) partes.push(`Inicial ${money(m.inicial)}`)
+      partes.push(`Ingresos ${money(m.ingresos)}`)
+      partes.push(`Egresos -${money(m.egresos)}`)
+      doc.text(partes.join('  '), 7, y); y += 5
+      doc.setFontSize(9)
+    })
+    doc.line(5, y, 75, y); y += 5
+    fila("TOTAL EN CAJA", money(d.total), true)
+    y += 3
+  }
+
+  doc.setFont("helvetica", "normal")
   doc.text("MiRestaurante — Sistema de Caja", 40, y, { align: "center" })
-  
+
   doc.save(`Cuadre_Caja_Turno_${h.id}.pdf`)
 }
